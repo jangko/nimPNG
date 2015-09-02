@@ -783,7 +783,7 @@ proc getHash(nz: nzStream, size, pos: int): int =
 
 proc countZeros(nz: nzStream, size, pos: int): int =
   var datapos = pos
-  var dataend = min(datapos + MAX_SUPPORTED_DEFLATE_LENGTH, datapos + size)
+  var dataend = min(datapos + MAX_SUPPORTED_DEFLATE_LENGTH, size)
   while datapos < dataend and nz.data[datapos] == chr(0): inc datapos
   #subtracting two addresses returned as 32-bit number (max value is MAX_SUPPORTED_DEFLATE_LENGTH)
   result = datapos - pos

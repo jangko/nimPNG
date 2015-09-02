@@ -1,4 +1,4 @@
-import streams, os, strutils, png
+import streams, os, strutils, nimPNG
 
 type
   BMP = ref object
