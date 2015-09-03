@@ -1,3 +1,30 @@
+# Portable Network Graphics Encoder and Decoder written in Nim
+#
+# Copyright (c) 2015 Andri Lim
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+#
+# this is a rewrite of LodePNG(www.lodev.org/lodepng)
+# to be as idiomatic Nim as possible
+# part of nimPDF sister projects
+#-------------------------------------
+
 import unsigned, streams, endians, tables, hashes, math, nimz
 import strutils
 
@@ -1753,7 +1780,7 @@ proc loadPNG*(fileName: string, colorType: PNGcolorType, bitDepth: int, settings
     if s == nil: return nil
     result = s.PNGDecode(colorType, bitDepth, settings)
   except:
-    echo getCurrentExceptionMsg()
+    debugEcho getCurrentExceptionMsg()
     result = nil
 
 proc loadPNG32*(fileName: string, settings = PNGDecoder(nil)): PNGResult =
@@ -1768,7 +1795,7 @@ proc PNGDecode32*(input: string, settings = PNGDecoder(nil)): PNGResult =
     if s == nil: return nil
     result = s.PNGDecode(LCT_RGBA, 8, settings)
   except:
-    echo getCurrentExceptionMsg()
+    debugEcho getCurrentExceptionMsg()
     result = nil
 
 proc PNGDecode24*(input: string, settings = PNGDecoder(nil)): PNGResult =
@@ -1777,7 +1804,7 @@ proc PNGDecode24*(input: string, settings = PNGDecoder(nil)): PNGResult =
     if s == nil: return nil
     result = s.PNGDecode(LCT_RGB, 8, settings)
   except:
-    echo getCurrentExceptionMsg()
+    debugEcho getCurrentExceptionMsg()
     result = nil
 
 #Encoder/Decoder demarcation line-----------------------------
@@ -2934,16 +2961,26 @@ proc writeChunks*(png: PNG, s: Stream) =
     s.write chunk.data
     s.writeInt32BE cast[int](chunk.crc)
 
-proc savePNG32*(fileName, input: string, w, h: int) =
-  var png = PNGEncode(input, LCT_RGBA, 8, w, h)
-  var s = newFileStream(fileName, fmWrite)
-  png.writeChunks s
+proc savePNG32*(fileName, input: string, w, h: int): bool =
+  try:
+    var png = PNGEncode(input, LCT_RGBA, 8, w, h)
+    var s = newFileStream(fileName, fmWrite)
+    png.writeChunks s
+    result = true
+  except:
+    debugEcho getCurrentExceptionMsg()
+    result = false 
 
-proc savePNG24*(fileName, input: string, w, h: int) =
-  var png = PNGEncode(input, LCT_RGB, 8, w, h)
-  var s = newFileStream(fileName, fmWrite)
-  png.writeChunks s
-
+proc savePNG24*(fileName, input: string, w, h: int): bool =
+  try:
+    var png = PNGEncode(input, LCT_RGB, 8, w, h)
+    var s = newFileStream(fileName, fmWrite)
+    png.writeChunks s
+    result = true
+  except:
+    debugEcho getCurrentExceptionMsg()
+    result = false
+    
 proc getFilterTypesInterlaced(png: PNG): seq[string] =
   var header = PNGHeader(png.getChunk(IHDR))
   var idat = PNGData(png.getChunk(IDAT))
