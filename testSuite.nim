@@ -6,11 +6,12 @@ type
     data: string
 
 proc writeWORD(s: Stream, val: int) =
-  let word = int16(val)
+  let word = val.int16
   s.write(word)
 
 proc writeDWORD(s: Stream, val: int) =
-  s.write(val)
+  let dword = val.int32
+  s.write(dword)
 
 proc newBMP(w, h: int): BMP =
   new(result)
@@ -49,7 +50,7 @@ proc write(s: Stream, bmp: BMP) =
     if paddingLen > 0: s.write(padding)
 
 proc loadPNG(fileName: string): BMP =
-  var settings = makeDefaultPNGDecoderSettings()
+  var settings = makePNGDecoder()
   settings.readTextChunks = true
   var png = loadPNG24(fileName, settings)
   if png == nil: return nil

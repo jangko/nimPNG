@@ -1,4 +1,4 @@
-import nimPNG, streams, math, unsigned, strutils, tables
+import nimPNG, streams, math, unsigned, strutils, tables, base64
 
 type
   Image = ref object
@@ -7,35 +7,13 @@ type
     colorType: PNGcolorType
     bitDepth: int
 
-proc fromBase64(v: int): int =
-  if(v >= ord('A')) and (v <= ord('Z')): return (v - ord('A'))
-  if(v >= ord('a')) and (v <= ord('z')): return (v - ord('a') + 26)
-  if(v >= ord('0')) and (v <= ord('9')): return (v - ord('0') + 52)
-  if v == ord('+'): return 62
-  if v == ord('/'): return 63
-  result = 0 #v == '='
-
 proc fromBase64(input: string): string =
-  var i = 0
-  result = ""
-  while (i + 3) < input.len:
-    let v = 262144 * fromBase64(input[i].int) + 
-      4096 * fromBase64(input[i + 1].int) + 
-      64 * fromBase64(input[i + 2].int) + fromBase64(input[i + 3].int)
-    result.add chr((v shr 16) and 0xff)
-    if input[i + 3] != '=': result.add chr((v shr 8) and 0xff)
-    if input[i + 2] != '=': result.add chr((v shr 0) and 0xff)
-    inc(i, 4)
+  result = base64.decode(input)
   
 proc assertEquals[T, U](expected: T, actual: U, message = "") =
   if expected != actual.T:
     echo "Error: Not equal! Expected ", expected, " got ", actual.T, ". ",
       "Message: ", message
-    quit()
-
-proc assertTrue(value: bool, message = "") =
-  if not value:
-    echo "Error: expected true. Message: ", message
     quit()
 
 proc getNumColorChannels(colorType: PNGcolorType): int =
@@ -223,10 +201,10 @@ proc testColor(r, g, b, a: int) =
   doCodecTest(image3)
   
   #a 256th color
-  image.data[255 * 4 + 0] = 255.chr
-  image.data[255 * 4 + 1] = 255.chr
-  image.data[255 * 4 + 2] = 255.chr
-  image.data[255 * 4 + 3] = 255.chr
+  image3.data[255 * 4 + 0] = 255.chr
+  image3.data[255 * 4 + 1] = 255.chr
+  image3.data[255 * 4 + 2] = 255.chr
+  image3.data[255 * 4 + 3] = 255.chr
 
   doCodecTest(image3)
 
@@ -334,6 +312,7 @@ proc doPngSuiteEqualTest(b64a, b64b: string) =
   
 proc testPngSuiteTiny() =
   echo "testPngSuiteTiny"
+
   doPngSuiteTinyTest("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABAQMAAAFS3GZcAAAABGdBTUEAAYagMeiWXwAAAANzQklU" &
                      "BAQEd/i1owAAAANQTFRFAAD/injSVwAAAApJREFUeJxjYAAAAAIAAUivpHEAAAAASUVORK5CYII=",
                      1, 1, 0, 0, 255, 255) #s01n3p01.png
@@ -883,7 +862,7 @@ proc testAutoColorModel(colors: string, inbitDepth: int, colorType: PNGcolorType
   s.setPosition 0
   var raw = s.PNGDecode()
   var info = raw.getInfo()
-  var decoded = png.convert(colorType, inbitDepth)
+  var decoded = raw.convert(LCT_RGBA, inbitdepth)
   
   assert num == info.width
   assert 1 == info.height
@@ -891,15 +870,20 @@ proc testAutoColorModel(colors: string, inbitDepth: int, colorType: PNGcolorType
   assert bitDepth == info.mode.bitDepth
   assert key == info.mode.keyDefined
   
-  if inbitDepth == 8:
-    colors.toHex
-    colors2.toHex
-    for i in 0..colors.high:
-      assert colors[i] == decoded.data[i]
-  else :
-    let len = colors.len div 2
-    for i in 0.. <len:
-      assert colors[i * 2] == decoded.data[i]
+  #if inbitDepth == 8:
+  for i in 0..colors.high:
+    if colors[i] != decoded.data[i]:
+      colors.toHex
+      echo "ONE"
+      decoded.data.substr(0, colors.len * 2).toHex
+    assert colors[i] == decoded.data[i]
+  #else :
+  #  
+  
+  #  
+  #  let len = colors.len div 2
+  #  for i in 0.. <len:
+  #    assert colors[i * 2] == decoded.data[i]
 
 proc addColor(colors: var string, r, g, b, a: int) =
   colors.add r.chr
@@ -921,23 +905,23 @@ proc testAutoColorModels() =
   var grey1 = ""
   for i in 0..1: addColor(grey1, i * 255, i * 255, i * 255, 255)
   testAutoColorModel(grey1, 8, LCT_GREY, 1, false)
-
+ 
   var grey2 = ""
   for i in 0..3: addColor(grey2, i * 85, i * 85, i * 85, 255)
   testAutoColorModel(grey2, 8, LCT_GREY, 2, false)
-
+ 
   var grey4 = ""
   for i in 0..15: addColor(grey4, i * 17, i * 17, i * 17, 255)
   testAutoColorModel(grey4, 8, LCT_GREY, 4, false)
-
+  
   var grey8 = ""
   for i in 0..255: addColor(grey8, i, i, i, 255)
   testAutoColorModel(grey8, 8, LCT_GREY, 8, false)
-
+  
   var grey16 = ""
   for i in 0..256: addColor16(grey16, i, i, i, 65535)
   testAutoColorModel(grey16, 16, LCT_GREY, 16, false)
-
+  
   var palette = ""
   addColor(palette, 0, 0, 1, 255)
   testAutoColorModel(palette, 8, LCT_PALETTE, 1, false)
@@ -953,23 +937,23 @@ proc testAutoColorModels() =
   testAutoColorModel(palette, 8, LCT_PALETTE, 8, false)
   addColor(palette, 0, 0, 18, 1) #translucent
   testAutoColorModel(palette, 8, LCT_PALETTE, 8, false)
-
+  
   var rgb = grey8
   addColor(rgb, 255, 0, 0, 255)
   testAutoColorModel(rgb, 8, LCT_RGB, 8, false)
-
+  
   var rgb_key = rgb
   addColor(rgb_key, 128, 0, 0, 0)
   testAutoColorModel(rgb_key, 8, LCT_RGB, 8, true)
-
+  
   var rgb_key2 = rgb_key
   addColor(rgb_key2, 128, 0, 0, 255) #same color but opaque ==> no more key
   testAutoColorModel(rgb_key2, 8, LCT_RGBA, 8, false)
-
+  
   var rgb_key3 = rgb_key
   addColor(rgb_key3, 128, 0, 0, 255) #semi-translucent ==> no more key
   testAutoColorModel(rgb_key3, 8, LCT_RGBA, 8, false)
-
+  
   var rgb_key4 = rgb_key
   addColor(rgb_key4, 128, 0, 0, 255)
   addColor(rgb_key4, 129, 0, 0, 255) #two different transparent colors ==> no more key
@@ -1008,19 +992,18 @@ proc testAutoColorModels() =
   testAutoColorModel(alpha16, 16, LCT_RGBA, 16, false)
   
 proc doMain() =
-  #testPNGCodec()
-  #testPngSuiteTiny()
-  #testPaletteFilterTypesZero()
-  #testComplexPNG()
-  #testPredefinedFilters()
-  #testColorKeyConvert()
-  #testColorConvert()
-  #testColorConvert2()
-  #testPaletteToPaletteConvert()
-  #testRGBToPaletteConvert()
-  #test16bitColorEndianness();
-  #testNoAutoConvert();
+  testPNGCodec()
+  testPngSuiteTiny()
+  testPaletteFilterTypesZero()
+  testComplexPNG()
+  testPredefinedFilters()
+  testColorKeyConvert()
+  testColorConvert()
+  testColorConvert2()
+  testPaletteToPaletteConvert()
+  testRGBToPaletteConvert()
+  test16bitColorEndianness();
+  testNoAutoConvert();
   testAutoColorModels();
-  
-  echo getTotalMem()
+
 doMain()

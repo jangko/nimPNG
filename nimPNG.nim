@@ -760,8 +760,8 @@ proc parsePNG(s: Stream, settings: PNGDecoder): PNG =
     let data = s.readStr(length)
     let crc = cast[uint32](s.readInt32BE())
     let calculatedCRC = crc32(crc32(0, $chunkType), data)
-    #if calculatedCRC != crc and not PNGDecoder(png.settings).ignoreCRC:
-      #raise PNGError("wrong crc for: " & $chunkType)
+    if calculatedCRC != crc and not PNGDecoder(png.settings).ignoreCRC:
+      raise PNGError("wrong crc for: " & $chunkType)
     var chunk = png.createChunk(chunkType, data, crc)
     
     if chunkType != IDAT and chunk != nil:
@@ -1224,11 +1224,12 @@ proc RGBAFromGrey124(output: var cstring, input: cstring, numPixels: int, mode: 
   var highest = ((1 shl mode.bitDepth) - 1) #highest possible value for this bit depth
   var obp = 0
   for i in 0..numPixels-1:
-    let val = chr((readBitsFromReversedStream(obp, input, mode.bitDepth) * 255) div highest)
+    let val = readBitsFromReversedStream(obp, input, mode.bitDepth)
+    let value = chr((val * 255) div highest)
     let x = i * 4
-    output[x]   = val
-    output[x+1] = val
-    output[x+2] = val
+    output[x]   = value
+    output[x+1] = value
+    output[x+2] = value
     if mode.keyDefined and (ord(val) == mode.keyR): output[x+3] = chr(0)
     else: output[x+3] = chr(255)
 
@@ -1361,10 +1362,11 @@ proc RGBA8FromGrey16(p: var RGBA8, input: cstring, px: int, mode: PNGColorMode) 
 proc RGBA8FromGrey124(p: var RGBA8, input: cstring, px: int, mode: PNGColorMode) =
   let highest = ((1 shl mode.bitDepth) - 1) #highest possible value for this bit depth
   var obp = px * mode.bitDepth
-  let val = chr((readBitsFromReversedStream(obp, input, mode.bitDepth) * 255) div highest)
-  p.r = val
-  p.g = val
-  p.b = val
+  let val = readBitsFromReversedStream(obp, input, mode.bitDepth)
+  let value = chr((val * 255) div highest)
+  p.r = value
+  p.g = value
+  p.b = value
   if mode.keyDefined and (ord(val) == mode.keyR): p.a = chr(0)
   else: p.a = chr(255)
 
@@ -2829,10 +2831,12 @@ proc PNGEncode*(input: string, w, h: int, settings = PNGEncoder(nil)): PNG =
     (modeOut.paletteSize == 0 or modeOut.paletteSize > 256):
     raise PNGError("invalid palette size, it is only allowed to be 1-256")
   
+  let inputSize = getRawSize(w, h, modeIn)
+  if input.len < inputSize:
+    raise PNGError("not enough input to encode")
+  
   if state.autoConvert:
     autoChooseColor(modeOut, input, w, h, modeIn)
-    #modeOut.show
-    #modeIn.show
     
   if state.interlaceMethod notin {IM_NONE, IM_INTERLACED}:
     raise PNGError("unexisting interlace mode")
@@ -2910,6 +2914,12 @@ proc PNGEncode*(input: string, colorType: PNGcolorType, bitDepth, w, h: int, set
   state.modeIn.bitDepth = bitDepth
   result = PNGEncode(input, w, h, state)
   
+proc PNGEncode32*(input: string, w, h: int): PNG =
+  result = PNGEncode(input, LCT_RGBA, 8, w, h)
+
+proc PNGEncode24*(input: string, w, h: int): PNG =
+  result = PNGEncode(input, LCT_RGB, 8, w, h)
+  
 proc writeChunks*(png: PNG, s: Stream) =
   s.write PNGSignature
   
@@ -2923,6 +2933,16 @@ proc writeChunks*(png: PNG, s: Stream) =
     s.writeInt32BE int(chunk.chunkType)
     s.write chunk.data
     s.writeInt32BE cast[int](chunk.crc)
+
+proc savePNG32*(fileName, input: string, w, h: int) =
+  var png = PNGEncode(input, LCT_RGBA, 8, w, h)
+  var s = newFileStream(fileName, fmWrite)
+  png.writeChunks s
+
+proc savePNG24*(fileName, input: string, w, h: int) =
+  var png = PNGEncode(input, LCT_RGB, 8, w, h)
+  var s = newFileStream(fileName, fmWrite)
+  png.writeChunks s
 
 proc getFilterTypesInterlaced(png: PNG): seq[string] =
   var header = PNGHeader(png.getChunk(IHDR))
