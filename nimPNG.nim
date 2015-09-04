@@ -26,11 +26,10 @@
 #-------------------------------------
 
 import unsigned, streams, endians, tables, hashes, math, nimz
-import strutils
 
 const
-  NIM_PNG_VERSION = "0.1.0"
-  
+  NIM_PNG_VERSION = "0.1.1"
+
 type
   PNGChunkType = distinct int32
 
@@ -171,10 +170,10 @@ type
     mode*: PNGColorMode
     backgroundDefined*: bool
     backgroundR*, backgroundG*, backgroundB*: int
-    
+
     physDefined*: bool
     physX*, physY*, physUnit*: int
-    
+
     timeDefined*: bool
     year*: range[0..65535]
     month*: range[1..12]
@@ -182,7 +181,7 @@ type
     hour*: range[0..23]
     minute*: range[0..59]
     second*: range[0..60] #to allow for leap seconds
-  
+
   PNG* = ref object
     settings*: PNGSettings
     chunks*: seq[PNGChunk]
@@ -193,17 +192,6 @@ type
     height*: int
     data*: string
 
-proc toHex*(input: string) =
-  var i = 0
-  for x in 0..input.high:
-    write(stdout, toHex(ord(input[x]), 2))
-    inc i
-    if i == 40:
-      write(stdout, "\n")
-      i = 0
-  if i < 40:
-    write(stdout, "\n")
-   
 proc makePNGDecoder*(): PNGDecoder =
   var s: PNGDecoder
   new(s)
@@ -467,7 +455,7 @@ method parseChunk(chunk: PNGData, png: PNG): bool =
 method parseChunk(chunk: PNGTrans, png: PNG): bool =
   var header = PNGHeader(png.getChunk(IHDR))
   if header == nil: return false
-    
+
   if header.colorType == LCT_PALETTE:
     var plte = PNGPalette(png.getChunk(PLTE))
     if plte == nil: return false
@@ -531,7 +519,7 @@ method validateChunk(chunk: PNGTime, png: PNG): bool =
   #to allow for leap seconds
   if chunk.second < 0 or chunk.second > 60: raise PNGError("invalid second range[0..60]")
   result = true
-    
+
 method parseChunk(chunk: PNGTime, png: PNG): bool =
   if chunk.length != 7: raise PNGError("tIME must be 7 bytes")
   chunk.year   = chunk.readInt16()
@@ -550,10 +538,10 @@ method parseChunk(chunk: PNGPhys, png: PNG): bool =
   result = true
 
 method validateChunk(chunk: PNGText, png: PNG): bool =
-  if(chunk.keyword.len < 1) or (chunk.keyword.len > 79): 
+  if(chunk.keyword.len < 1) or (chunk.keyword.len > 79):
     raise PNGError("keyword too short or too long")
   result = true
-  
+
 method parseChunk(chunk: PNGText, png: PNG): bool =
   var len = 0
   while(len < chunk.length) and (chunk.data[len] != chr(0)): inc len
@@ -565,10 +553,10 @@ method parseChunk(chunk: PNGText, png: PNG): bool =
   result = true
 
 method validateChunk(chunk: PNGZtxt, png: PNG): bool =
-  if(chunk.keyword.len < 1) or (chunk.keyword.len > 79): 
+  if(chunk.keyword.len < 1) or (chunk.keyword.len > 79):
     raise PNGError("keyword too short or too long")
   result = true
-  
+
 method parseChunk(chunk: PNGZtxt, png: PNG): bool =
   var len = 0
   while(len < chunk.length) and (chunk.data[len] != chr(0)): inc len
@@ -584,10 +572,10 @@ method parseChunk(chunk: PNGZtxt, png: PNG): bool =
   result = true
 
 method validateChunk(chunk: PNGItxt, png: PNG): bool =
-  if(chunk.keyword.len < 1) or (chunk.keyword.len > 79): 
+  if(chunk.keyword.len < 1) or (chunk.keyword.len > 79):
     raise PNGError("keyword too short or too long")
   result = true
-  
+
 method parseChunk(chunk: PNGItxt, png: PNG): bool =
   if chunk.length < 5: raise PNGError("iTXt len too short")
 
@@ -649,10 +637,10 @@ method parseChunk(chunk: PNGStandarRGB, png: PNG): bool =
   result = true
 
 method validateChunk(chunk: PNGICCProfile, png: PNG): bool =
-  if(chunk.profileName.len < 1) or (chunk.profileName.len > 79): 
+  if(chunk.profileName.len < 1) or (chunk.profileName.len > 79):
     raise PNGError("keyword too short or too long")
   result = true
-  
+
 method parseChunk(chunk: PNGICCProfile, png: PNG): bool =
   var len = 0
   while(len < chunk.length) and (chunk.data[len] != chr(0)): inc len
@@ -783,14 +771,14 @@ proc parsePNG(s: Stream, settings: PNGDecoder): PNG =
   while not s.atEnd():
     let length = s.readInt32BE()
     let chunkType = PNGChunkType(s.readInt32BE())
-    
+
     let data = s.readStr(length)
     let crc = cast[uint32](s.readInt32BE())
     let calculatedCRC = crc32(crc32(0, $chunkType), data)
     if calculatedCRC != crc and not PNGDecoder(png.settings).ignoreCRC:
       raise PNGError("wrong crc for: " & $chunkType)
     var chunk = png.createChunk(chunkType, data, crc)
-    
+
     if chunkType != IDAT and chunk != nil:
       if not chunk.parseChunk(png): raise PNGError("error parse chunk: " & $chunkType)
       if not chunk.validateChunk(png): raise PNGError("invalid chunk: " & $chunkType)
@@ -1104,7 +1092,7 @@ proc getInfo*(png: PNG): PNGInfo =
     result.physX = phys.physX
     result.physY = phys.physY
     result.physUnit = phys.unit
-    
+
   var time = PNGTime(png.getChunk(tIME))
   if time == nil: result.timeDefined = false
   else:
@@ -1115,7 +1103,7 @@ proc getInfo*(png: PNG): PNGInfo =
     result.hour = time.hour
     result.minute = time.minute
     result.second = time.second
- 
+
 proc getChunkNames*(png: PNG): string =
   result = ""
   var i = 0
@@ -1123,7 +1111,7 @@ proc getChunkNames*(png: PNG): string =
     result.add ($c.chunkType)
     if i < png.chunks.high: result.add ' '
     inc i
-    
+
 proc RGBFromGrey8(output: var cstring, input: cstring, numPixels: int, mode: PNGColorMode) =
   for i in 0..numPixels-1:
     let x = i * 3
@@ -1753,13 +1741,13 @@ proc convert*(png: PNG, colorType: PNGcolorType, bitDepth: int): PNGResult =
     return result
 
   convert(output, input, modeOut, modeIn, numPixels)
-  
+
 proc PNGDecode*(s: Stream, colorType: PNGcolorType, bitDepth: int, settings = PNGDecoder(nil)): PNGResult =
   if not bitDepthAllowed(colorType, bitDepth):
       raise PNGError("colorType and bitDepth combination not allowed")
   var png = s.parsePNG(settings)
   png.postProcessscanLines()
-  
+
   if PNGDecoder(png.settings).colorConvert:
     result = png.convert(colorType, bitDepth)
   else:
@@ -1773,12 +1761,13 @@ proc PNGDecode*(s: Stream, settings = PNGDecoder(nil)): PNG =
   var png = s.parsePNG(settings)
   png.postProcessscanLines()
   result = png
-  
+
 proc loadPNG*(fileName: string, colorType: PNGcolorType, bitDepth: int, settings: PNGDecoder): PNGResult =
   try:
     var s = newFileStream(fileName, fmRead)
     if s == nil: return nil
     result = s.PNGDecode(colorType, bitDepth, settings)
+    s.close()
   except:
     debugEcho getCurrentExceptionMsg()
     result = nil
@@ -1823,19 +1812,19 @@ type
     LFS_BRUTE_FORCE,
     #use predefined_filters buffer: you specify the filter type for each scanLine
     LFS_PREDEFINED
-  
+
   PNGKeyText = object
     keyword, text: string
-  
+
   PNGIText = object
     keyword: string
     text: string
     languageTag: string
-    translatedKeyword: string 
+    translatedKeyword: string
 
   PNGUnknown = ref object of PNGChunk
   PNGEnd = ref object of PNGChunk
- 
+
   PNGEncoder* = ref object of PNGSettings
     #automatically choose output PNG color type. Default: true
     autoConvert*: bool
@@ -1867,15 +1856,15 @@ type
     textCompression*: bool
     textList*: seq[PNGKeyText]
     itextList*: seq[PNGIText]
-    
+
     interlaceMethod*: PNGInterlace
-    
+
     backgroundDefined*: bool
     backgroundR*, backgroundG*, backgroundB*: int
-    
+
     physDefined*: bool
     physX*, physY*, physUnit*: int
-    
+
     timeDefined*: bool
     year*: range[0..65535]
     month*: range[1..12]
@@ -1883,9 +1872,9 @@ type
     hour*: range[0..23]
     minute*: range[0..59]
     second*: range[0..60] #to allow for leap seconds
-  
+
     unknown*: seq[PNGUnknown]
-    
+
   PNGColorProfile = ref object
     colored: bool #not greyscale
     key: bool #if true, image is not opaque. Only if true and alpha is false, color key is possible.
@@ -1894,7 +1883,7 @@ type
     numColors: int #amount of colors, up to 257. Not valid if bits == 16.
     palette: seq[RGBA8] #Remembers up to the first 256 RGBA colors, in no particular order
     bits: int #bits per channel (not for palette). 1,2 or 4 for greyscale only. 16 if 16-bit per channel required.
-  
+
 proc makePNGEncoder*(): PNGEncoder =
   var s: PNGEncoder
   new(s)
@@ -1902,7 +1891,7 @@ proc makePNGEncoder*(): PNGEncoder =
   s.filterStrategy = LFS_MINSUM
   s.autoConvert = true
   s.modeIn = newColorMode()
-  s.modeOut = newColorMode()  
+  s.modeOut = newColorMode()
   s.forcePalette = false
   s.predefinedFilters = nil
   s.addID = false
@@ -1924,7 +1913,7 @@ proc makePNGEncoder*(): PNGEncoder =
 
 proc addText*(state: PNGEncoder, keyword, text: string) =
   state.textList.add PNGKeyText(keyword: keyword, text: text)
-  
+
 proc addIText*(state: PNGEncoder, keyword, langtag, transkey, text: string) =
   var itext: PNGIText
   itext.keyword = keyword
@@ -1933,12 +1922,12 @@ proc addIText*(state: PNGEncoder, keyword, langtag, transkey, text: string) =
   itext.translatedKeyword = transkey
   state.itextList.add itext
 
-proc make[T](chunkType: PNGChunkType, estimateSize: int): T = 
+proc make[T](chunkType: PNGChunkType, estimateSize: int): T =
   new(result)
   result.chunkType = chunkType
   if estimateSize > 0: result.data = newStringOfCap(estimateSize)
   else: result.data = ""
-  
+
 proc addUnknownChunk*(state: PNGEncoder, chunkType, data: string) =
   assert chunkType.len == 4
   var chunk = make[PNGUnknown](makeChunkType(chunkType), 0)
@@ -1975,7 +1964,7 @@ proc writeInt32BE(s: Stream, value: int) =
   var tmp: int32
   bigEndian32(addr(tmp), addr(val))
   s.write(tmp)
-  
+
 method writeChunk(chunk: PNGChunk, png: PNG): bool = true
 
 method writeChunk(chunk: PNGHeader, png: PNG): bool =
@@ -1988,7 +1977,7 @@ method writeChunk(chunk: PNGHeader, png: PNG): bool =
   chunk.writeByte(chunk.filterMethod)
   chunk.writeByte(int(chunk.interlaceMethod))
   result = true
-  
+
 method writeChunk(chunk: PNGPalette, png: PNG): bool =
   #estimate 3 * palette.len
   for px in chunk.palette:
@@ -1996,7 +1985,7 @@ method writeChunk(chunk: PNGPalette, png: PNG): bool =
     chunk.writeByte(int(px.g))
     chunk.writeByte(int(px.b))
   result = true
-  
+
 method writeChunk(chunk: PNGData, png: PNG): bool =
   var nz = nzDeflateInit(chunk.idat)
   chunk.data = zlib_compress(nz)
@@ -2065,7 +2054,7 @@ method writeChunk(chunk: PNGText, png: PNG): bool =
   chunk.writeByte 0 #null separator
   chunk.writeString chunk.text
   result = true
-  
+
 method writeChunk(chunk: PNGZtxt, png: PNG): bool =
   #estimate chunk.keyword.len + 2
   chunk.writeString chunk.keyword
@@ -2093,7 +2082,7 @@ method writeChunk(chunk: PNGItxt, png: PNG): bool =
   else:
     compressed = 0
     text = chunk.text
-    
+
   chunk.writeString chunk.keyword
   chunk.writeByte 0 #null separator
   chunk.writeByte compressed #compression flag(0: uncompressed, 1: compressed)
@@ -2121,7 +2110,7 @@ method writeChunk(chunk: PNGChroma, png: PNG): bool =
   chunk.writeInt32(chunk.blueX)
   chunk.writeInt32(chunk.blueY)
   result = true
-  
+
 method writeChunk(chunk: PNGStandarRGB, png: PNG): bool =
   #estimate 1 byte
   chunk.writeByte(chunk.renderingIntent)
@@ -2144,7 +2133,7 @@ method writeChunk(chunk: PNGSPalette, png: PNG): bool =
   chunk.writeByte 0 #null separator
   if chunk.sampleDepth notin {8, 16}: raise PNGError("palette sample depth error")
   chunk.writeByte chunk.sampleDepth
-  
+
   if chunk.sampleDepth == 8:
     for p in chunk.palette:
       chunk.writeByte(p.red)
@@ -2172,7 +2161,7 @@ proc isGreyscaleType(mode: PNGColorMode): bool =
 
 proc isAlphaType(mode: PNGColorMode): bool =
   result = mode.colorType in {LCT_RGBA, LCT_GREY_ALPHA}
-  
+
 #proc isPaletteType(mode: PNGColorMode): bool =
 #  result = mode.colorType == LCT_PALETTE
 
@@ -2188,7 +2177,7 @@ proc canHaveAlpha(mode: PNGColorMode): bool =
 proc getValueRequiredBits(value: int): int =
   if(value == 0) or (value == 255): return 1
   #The scaling of 2-bit and 4-bit values uses multiples of 85 and 17
-  if(value mod 17) == 0: 
+  if(value mod 17) == 0:
     if (value mod 85) == 0: return 2
     else: return 4
   result = 8
@@ -2197,16 +2186,16 @@ proc differ(p: RGBA16): bool =
   # first and second byte differ
   if (p.r and 255) != ((p.r shr 8) and 255): return true
   if (p.g and 255) != ((p.g shr 8) and 255): return true
-  if (p.b and 255) != ((p.b shr 8) and 255): return true 
+  if (p.b and 255) != ((p.b shr 8) and 255): return true
   if (p.a and 255) != ((p.a shr 8) and 255): return true
   result = false
-      
+
 proc getColorProfile(input: string, w, h: int, mode: PNGColorMode): PNGColorProfile =
   var prof = makeColorProfile()
-  let 
+  let
     numPixels = w * h
     bpp = getBPP(mode)
-  
+
   var
     coloredDone = isGreyscaleType(mode)
     alphaDone   = not canHaveAlpha(mode)
@@ -2215,43 +2204,43 @@ proc getColorProfile(input: string, w, h: int, mode: PNGColorMode): PNGColorProf
     sixteen = false
     maxNumColors = 257
     tree = initTable[RGBA8, int]()
-  
+
   if bpp <= 8:
     case bpp
-    of 1: maxNumColors = 2 
-    of 2: maxNumColors = 4 
+    of 1: maxNumColors = 2
+    of 2: maxNumColors = 4
     of 4: maxNumColors = 16
     else: maxNumColors = 256
-  
+
   #Check if the 16-bit input is truly 16-bit
   if mode.bitDepth == 16:
     let cvt = getColorRGBA16(mode)
     var p = RGBA16(r:0, g:0, b:0, a:0)
-    
+
     for px in 0..numPixels-1:
       cvt(p, cstring(input), px, mode)
       if p.differ():
         sixteen = true
         break
-  
+
   if sixteen:
     let cvt = getColorRGBA16(mode)
     var p = RGBA16(r:0, g:0, b:0, a:0)
     prof.bits = 16
     #counting colors no longer useful, palette doesn't support 16-bit
     bitsDone = true
-    numColorsDone = true 
+    numColorsDone = true
 
     for px in 0..numPixels-1:
       cvt(p, cstring(input), px, mode)
       if not coloredDone and ((p.r != p.g) or (p.r != p.b)):
         prof.colored = true
         coloredDone = true
-      
+
       if not alphaDone:
-        let matchKey = (int(p.r) == prof.keyR and 
+        let matchKey = (int(p.r) == prof.keyR and
           int(p.g) == prof.keyG and int(p.b) == prof.keyB)
-          
+
         if(p.a != 65535) and (p.a != 0 or (prof.key and not matchKey)):
           prof.alpha = true
           alphaDone = true
@@ -2284,9 +2273,9 @@ proc getColorProfile(input: string, w, h: int, mode: PNGColorMode): PNGColorProf
         if prof.bits < 8: prof.bits = 8 #PNG has no colored modes with less than 8-bit per channel
 
       if not alphaDone:
-        let matchKey = ((int(p.r) == prof.keyR) and 
+        let matchKey = ((int(p.r) == prof.keyR) and
           (int(p.g) == prof.keyG) and (int(p.b) == prof.keyB))
-          
+
         if(p.a != chr(255)) and (p.a != chr(0) or (prof.key and (not matchKey))):
           prof.alpha = true
           alphaDone = true
@@ -2315,7 +2304,7 @@ proc getColorProfile(input: string, w, h: int, mode: PNGColorMode): PNGColorProf
     prof.keyG += prof.keyG shl 8
     prof.keyB += prof.keyB shl 8
   result = prof
-  
+
 #Automatically chooses color type that gives smallest amount of bits in the
 #output image, e.g. grey if there are only greyscale pixels, palette if there
 #are less than 256 colors, ...
@@ -2324,15 +2313,15 @@ proc getColorProfile(input: string, w, h: int, mode: PNGColorMode): PNGColorProf
 proc autoChooseColor(modeOut: PNGColorMode, input: string, w, h: int, modeIn: PNGColorMode) =
   var prof = getColorProfile(input, w, h, modeIn)
   modeOut.keyDefined = false
-  
+
   if prof.key and ((w * h) <= 16):
     prof.alpha = true #too few pixels to justify tRNS chunk overhead
     if prof.bits < 8: prof.bits = 8 #PNG has no alphachannel modes with less than 8-bit per channel
 
   #grey without alpha, with potentially low bits
-  let greyOk = not prof.colored and  not prof.alpha 
+  let greyOk = not prof.colored and  not prof.alpha
   let n = prof.numColors
-  
+
   var paletteBits = 0
   if n <= 2: paletteBits = 1
   elif n <= 4: paletteBits = 2
@@ -2340,10 +2329,10 @@ proc autoChooseColor(modeOut: PNGColorMode, input: string, w, h: int, modeIn: PN
   else: paletteBits = 8
   var paletteOk = (n <= 256) and ((n * 2) < (w * h)) and prof.bits <= 8
   #don't add palette overhead if image has only a few pixels
-  if (w * h) < (n * 2): paletteOk = false 
+  if (w * h) < (n * 2): paletteOk = false
   #grey is less overhead
   if greyOk and (prof.bits <= palettebits): paletteOk = false
-  
+
   if paletteOk:
     modeOut.paletteSize = prof.palette.len
     modeOut.palette   = prof.palette
@@ -2374,12 +2363,12 @@ proc autoChooseColor(modeOut: PNGColorMode, input: string, w, h: int, modeIn: PN
 proc addPaddingBits(output: var cstring, input: cstring, olinebits, ilinebits, h: int) =
   #The opposite of the removePaddingBits function
   #olinebits must be >= ilinebits
-  
+
   let diff = olinebits - ilinebits
-  var 
+  var
     obp = 0
     ibp = 0 #bit pointers
-  
+
   for y in 0..h-1:
     for x in 0..ilinebits-1:
       let bit = readBitFromReversedStream(ibp, input)
@@ -2387,7 +2376,7 @@ proc addPaddingBits(output: var cstring, input: cstring, olinebits, ilinebits, h
     for x in 0..diff-1: setBitOfReversedStream(obp, output, 0)
 
 proc filterScanLine(output: var cstring, scanLine, prevLine: cstring, len, byteWidth: int, filterType: PNGFilter0) =
-  
+
   case filterType
   of FLT_NONE:
     for i in 0..len-1: output[i] = scanLine[i]
@@ -2397,31 +2386,31 @@ proc filterScanLine(output: var cstring, scanLine, prevLine: cstring, len, byteW
       output[i] = chr(scanLine[i].uint8 - scanLine[i - byteWidth].uint8)
   of FLT_UP:
     if prevLine != nil:
-      for i in 0..len-1: 
+      for i in 0..len-1:
         output[i] = chr(scanLine[i].uint8 - prevLine[i].uint8)
     else:
       for i in 0..len-1: output[i] = scanLine[i]
   of FLT_AVERAGE:
     if prevLine != nil:
-      for i in 0..byteWidth-1: 
+      for i in 0..byteWidth-1:
         output[i] = chr(scanLine[i].uint8 - (prevLine[i].uint8 div 2))
-      for i in byteWidth..len-1: 
+      for i in byteWidth..len-1:
         output[i] = chr(scanLine[i].uint8 - ((scanLine[i - byteWidth].uint8 + prevLine[i].uint8) div 2))
     else:
       for i in 0..byteWidth-1: output[i] = scanLine[i]
-      for i in byteWidth..len-1: 
+      for i in byteWidth..len-1:
         output[i] = chr(scanLine[i].uint8 - (scanLine[i - byteWidth].uint8 div 2))
   of FLT_PAETH:
     if prevLine != nil:
       #paethPredictor(0, prevLine[i], 0) is always prevLine[i]
-      for i in 0..byteWidth-1: 
+      for i in 0..byteWidth-1:
         output[i] = chr(scanLine[i].uint8 - prevLine[i].uint8)
       for i in byteWidth..len-1:
         output[i] = chr(scanLine[i].uint8 - paethPredictor(ord(scanLine[i - byteWidth]), ord(prevLine[i]), ord(prevLine[i - byteWidth])).uint8)
     else:
       for i in 0..byteWidth-1: output[i] = scanLine[i]
       #paethPredictor(scanLine[i - byteWidth], 0, 0) is always scanLine[i - byteWidth]
-      for i in byteWidth..len-1: 
+      for i in byteWidth..len-1:
         output[i] = chr(scanLine[i].uint8 - scanLine[i - byteWidth].uint8)
   else:
     raise PNGError("unsupported fitler type")
@@ -2443,23 +2432,23 @@ proc filterZero(output: var cstring, input: cstring, w, h, bpp: int) =
     filterScanLine(outp, scanLine, prevLine, lineBytes, byteWidth, FLT_NONE)
     prevLine = addr(inp[inindex])
 
-proc filterMinsum(output: var cstring, input: cstring, w, h, bpp: int) =    
+proc filterMinsum(output: var cstring, input: cstring, w, h, bpp: int) =
   let lineBytes = (w * bpp + 7) div 8
   let byteWidth = (bpp + 7) div 8
-  
+
   #adaptive filtering
   var sum = [0, 0, 0, 0, 0]
   var smallest = 0
-  
+
   #five filtering attempts, one for each filter type
   var attempt: array[0..4, string]
   var bestType = 0
   var inp = input
   var prevLine: cstring = nil
-  
-  for i in 0..attempt.high: 
+
+  for i in 0..attempt.high:
     attempt[i] = newString(lineBytes)
-  
+
   for y in 0..h-1:
     #try the 5 filter types
     for fType in 0..4:
@@ -2478,12 +2467,12 @@ proc filterMinsum(output: var cstring, input: cstring, w, h, bpp: int) =
           let s = ord(attempt[fType][x])
           if s < 128: sum[fType] += s
           else: sum[fType] += (255 - s)
-                 
+
       #check if this is smallest sum (or if type == 0 it's the first case so always store the values)*/
       if(fType == 0) or (sum[fType] < smallest):
         bestType = fType
         smallest = sum[fType]
-       
+
     prevLine = addr(inp[y * lineBytes])
     #now fill the out values
     #the first byte of a scanline will be the filter type
@@ -2491,7 +2480,7 @@ proc filterMinsum(output: var cstring, input: cstring, w, h, bpp: int) =
     for x in 0..lineBytes-1:
       output[y * (lineBytes + 1) + 1 + x] = attempt[bestType][x]
 
-proc filterEntropy(output: var cstring, input: cstring, w, h, bpp: int) =  
+proc filterEntropy(output: var cstring, input: cstring, w, h, bpp: int) =
   let lineBytes = (w * bpp + 7) div 8
   let byteWidth = (bpp + 7) div 8
   var inp = input
@@ -2502,8 +2491,8 @@ proc filterEntropy(output: var cstring, input: cstring, w, h, bpp: int) =
   var bestType = 0
   var attempt: array[0..4, string]
   var count: array[0..255, int]
-  
-  for i in 0..attempt.high: 
+
+  for i in 0..attempt.high:
     attempt[i] = newString(lineBytes)
 
   for y in 0..h-1:
@@ -2512,14 +2501,14 @@ proc filterEntropy(output: var cstring, input: cstring, w, h, bpp: int) =
       var outp = cstring(attempt[fType])
       filterScanLine(outp, addr(inp[y * lineBytes]), prevLine, lineBytes, byteWidth, PNGFilter0(fType))
       for x in 0..255: count[x] = 0
-      for x in 0..lineBytes-1: 
+      for x in 0..lineBytes-1:
         inc count[ord(attempt[fType][x])]
       inc count[fType] #the filter type itself is part of the scanline
       sum[fType] = 0
       for x in 0..255:
         let p = float(count[x]) / float(lineBytes + 1)
         if count[x] != 0: sum[fType] += log2(1 / p) * p
-      
+
       #check if this is smallest sum (or if type == 0 it's the first case so always store the values)
       if (fType == 0) or (sum[fType] < smallest):
         bestType = fType
@@ -2532,7 +2521,7 @@ proc filterEntropy(output: var cstring, input: cstring, w, h, bpp: int) =
     for x in 0..lineBytes-1:
       output[y * (lineBytes + 1) + 1 + x] = attempt[bestType][x]
 
-proc filterPredefined(output: var cstring, input: cstring, w, h, bpp: int, state: PNGEncoder) =  
+proc filterPredefined(output: var cstring, input: cstring, w, h, bpp: int, state: PNGEncoder) =
   let lineBytes = (w * bpp + 7) div 8
   let byteWidth = (bpp + 7) div 8
   var inp = input
@@ -2547,27 +2536,27 @@ proc filterPredefined(output: var cstring, input: cstring, w, h, bpp: int, state
     filterScanLine(outp, addr(inp[inindex]), prevLine, lineBytes, byteWidth, PNGFilter0(fType))
     prevLine = addr(inp[inindex])
 
-proc filterBruteForce(output: var cstring, input: cstring, w, h, bpp: int) =  
+proc filterBruteForce(output: var cstring, input: cstring, w, h, bpp: int) =
   let lineBytes = (w * bpp + 7) div 8
   let byteWidth = (bpp + 7) div 8
   var inp = input
   var prevLine: cstring = nil
-  
+
   #brute force filter chooser.
   #deflate the scanline after every filter attempt to see which one deflates best.
   #This is very slow and gives only slightly smaller, sometimes even larger, result*/
-   
+
   var size: array[0..4, int]
   var attempt: array[0..4, string] #five filtering attempts, one for each filter type
   var smallest = 0
   var bestType = 0
-    
+
   #use fixed tree on the attempts so that the tree is not adapted to the filtertype on purpose,
   #to simulate the true case where the tree is the same for the whole image. Sometimes it gives
   #better result with dynamic tree anyway. Using the fixed tree sometimes gives worse, but in rare
   #cases better compression. It does make this a bit less slow, so it's worth doing this.
-  
-  for i in 0..attempt.high: 
+
+  for i in 0..attempt.high:
     attempt[i] = newString(lineBytes)
 
   for y in 0..h-1:
@@ -2577,16 +2566,16 @@ proc filterBruteForce(output: var cstring, input: cstring, w, h, bpp: int) =
       var outp = cstring(attempt[fType])
       filterScanline(outp, addr(inp[y * lineBytes]), prevLine, lineBytes, byteWidth, PNGFilter0(fType))
       size[fType] = 0
-      
+
       var nz = nzDeflateInit(attempt[fType])
       let data = zlib_compress(nz)
       size[fType] = data.len
-      
+
       #check if this is smallest size (or if type == 0 it's the first case so always store the values)
       if(fType == 0) or (size[fType] < smallest):
         bestType = fType
         smallest = size[fType]
-        
+
     prevLine = addr(inp[y * lineBytes])
     output[y * (lineBytes + 1)] = chr(bestType) #the first byte of a scanline will be the filter type
     for x in 0..lineBytes-1:
@@ -2596,7 +2585,7 @@ proc filter(output: var cstring, input: cstring, w, h: int, modeOut: PNGColorMod
   #For PNG filter method 0
   #out must be a buffer with as size: h + (w * h * bpp + 7) / 8, because there are
   #the scanlines with 1 extra byte per scanline
-  
+
   let bpp = getBPP(modeOut)
   var strategy = state.filterStrategy
 
@@ -2613,10 +2602,10 @@ proc filter(output: var cstring, input: cstring, w, h: int, modeOut: PNGColorMod
   #heuristic is used.
   if state.filterPaletteZero and
     (modeOut.colorType == LCT_PALETTE or modeOut.bitDepth < 8): strategy = LFS_ZERO
- 
+
   if bpp == 0:
     raise PNGError("invalid color type")
- 
+
   case strategy
   of LFS_ZERO: filterZero(output, input, w, h, bpp)
   of LFS_MINSUM: filterMinsum(output, input, w, h, bpp)
@@ -2658,13 +2647,13 @@ proc Adam7Interlace(output: var cstring, input: cstring, w, h, bpp: int) =
           for b in 0..bpp-1:
             let bit = readBitFromReversedStream(ibp, input)
             setBitOfReversedStream(obp, output, bit)
-    
+
 proc preProcessScanLines(png: PNG, input: cstring, w, h: int, modeOut: PNGColorMode, state: PNGEncoder) =
   #This function converts the pure 2D image with the PNG's colorType, into filtered-padded-interlaced data. Steps:
   # if no Adam7: 1) add padding bits (= posible extra bits per scanLine if bpp < 8) 2) filter
   # if adam7: 1) Adam7_interlace 2) 7x add padding bits 3) 7x filter
   let bpp = getBPP(modeOut)
-  
+
   if state.interlaceMethod == IM_NONE:
     #image size plus an extra byte per scanLine + possible padding bits
     let scanLen = (w * bpp + 7) div 8
@@ -2676,12 +2665,12 @@ proc preProcessScanLines(png: PNG, input: cstring, w, h: int, modeOut: PNGColorM
       var padded = newString(h * scanLen)
       var padding = cstring(padded)
       addPaddingBits(padding, input, scanLen * 8, w * bpp, h)
-      
+
       filter(output, padding, w, h, modeOut, state)
     else:
       #we can immediatly filter into the out buffer, no other steps needed
       filter(output, input, w, h, modeOut, state)
-      
+
   else: #interlaceMethod is 1 (Adam7)
     var pass: PNGPass
     Adam7PassValues(pass, w, h, bpp)
@@ -2690,7 +2679,7 @@ proc preProcessScanLines(png: PNG, input: cstring, w, h: int, modeOut: PNGColorM
     var adam7buf = newString(pass.start[7])
     var adam7 = cstring(adam7buf)
     var output = cstring(png.pixels)
-    
+
     Adam7Interlace(adam7, input, w, h, bpp)
     for i in 0..6:
       if bpp < 8:
@@ -2722,7 +2711,7 @@ proc getPaletteTranslucency(modeOut: PNGColorMode): int =
     #when key, no opaque RGB may have key's RGB*/
     elif(key != 0) and (p.r == x.r) and (p.g == x.g) and (p.b == x.g): return 2
     inc i
-    
+
   result = key
 
 proc addChunkIHDR(png: PNG, w,h: int, modeOut: PNGColorMode, state: PNGEncoder) =
@@ -2798,7 +2787,7 @@ proc addChunktIME(png: PNG, state: PNGEncoder) =
   chunk.minute = state.minute
   chunk.second = state.second
   png.chunks.add chunk
-  
+
 proc addChunktEXt(png: PNG, txt: PNGKeyText) =
   var chunk = make[PNGText](tEXt, txt.keyword.len + txt.text.len + 1)
   chunk.keyword = txt.keyword
@@ -2822,7 +2811,7 @@ proc addChunkiTXt(png: PNG, txt: PNGIText) =
 proc addChunkIEND(png: PNG) =
   var chunk = make[PNGEnd](IEND, 0)
   png.chunks.add chunk
-  
+
 proc `$`(colorType: PNGColorType): string =
   case colorType
   of LCT_GREY: result = "LCT_GREY"
@@ -2832,49 +2821,45 @@ proc `$`(colorType: PNGColorType): string =
   of LCT_RGBA: result = "LCT_RGBA"
   else: result = "LCT_UNKNOWN"
 
-proc show*(mode: PNGColorMode) =
-  for k, v in fieldPairs(mode[]):
-    echo k, " ", $v
-    
 proc PNGEncode*(input: string, w, h: int, settings = PNGEncoder(nil)): PNG =
   var png: PNG
   new(png)
   png.chunks = @[]
-  
+
   if settings == nil: png.settings = makePNGEncoder()
   else: png.settings = settings
-  
+
   let state = PNGEncoder(png.settings)
   var modeIn = newColorMode(state.modeIn)
   var modeOut = newColorMode(state.modeOut)
-  
+
   if not bitDepthAllowed(modeIn.colorType, modeIn.bitDepth):
     raise PNGError("modeIn colorType and bitDepth combination not allowed")
-  
+
   if not bitDepthAllowed(modeOut.colorType, modeOut.bitDepth):
     raise PNGError("modeOut colorType and bitDepth combination not allowed")
-  
+
   if(modeOut.colorType == LCT_PALETTE or state.forcePalette) and
     (modeOut.paletteSize == 0 or modeOut.paletteSize > 256):
     raise PNGError("invalid palette size, it is only allowed to be 1-256")
-  
+
   let inputSize = getRawSize(w, h, modeIn)
   if input.len < inputSize:
     raise PNGError("not enough input to encode")
-  
+
   if state.autoConvert:
     autoChooseColor(modeOut, input, w, h, modeIn)
-    
+
   if state.interlaceMethod notin {IM_NONE, IM_INTERLACED}:
     raise PNGError("unexisting interlace mode")
 
   if not bitDepthAllowed(modeOut.colorType, modeOut.bitDepth):
       raise PNGError("colorType and bitDepth combination not allowed")
-  
+
   if modeIn != modeOut:
     let size = (w * h * getBPP(modeOut) + 7) div 8
     let numPixels = w * h
-    
+
     var converted = newString(size)
     var output = cstring(converted)
     convert(output, cstring(input), modeOut, modeIn, numPixels)
@@ -2886,46 +2871,46 @@ proc PNGEncode*(input: string, w, h: int, settings = PNGEncoder(nil)): PNG =
   #unknown chunks between IHDR and PLTE
   if state.unknown.len > 0:
     png.chunks.add state.unknown[0]
-  
+
   if modeOut.colorType == LCT_PALETTE: png.addChunkPLTE(modeOut)
   if state.forcePalette and modeOut.colorType in {LCT_RGB, LCT_RGBA}: png.addChunkPLTE(modeOut)
-  
+
   if(modeOut.colorType == LCT_PALETTE) and (getPaletteTranslucency(modeOut) != 0):
     png.addChunktRNS(modeOut)
-    
+
   if modeOut.colorType in {LCT_GREY, LCT_RGB} and modeOut.keyDefined:
     png.addChunktRNS(modeOut)
-  
+
   #bKGD (must come between PLTE and the IDAt chunks
   if state.backgroundDefined: png.addChunkbKGD(modeOut, state)
-  
+
   #pHYs (must come before the IDAT chunks)
   if state.physDefined: png.addChunkpHYs(state)
-  
+
   #unknown chunks between PLTE and IDAT
   if state.unknown.len > 1:
     png.chunks.add state.unknown[1]
-  
+
   #IDAT (multiple IDAT chunks must be consecutive)
   png.addChunkIDAT(state)
-  
+
   if state.timeDefined: png.addChunktIME(state)
-  
+
   for txt in state.textList:
     if state.textCompression: png.addChunkzTXt(txt)
     else: png.addChunktEXt(txt)
-    
+
   if state.addID:
     var txt = PNGKeyText(keyword: "nimPNG", text: NIM_PNG_VERSION)
     png.addChunktEXt(txt)
-    
+
   for txt in state.itextList:
     png.addChunkiTXt(txt)
-  
+
   #unknown chunks between IDAT and IEND
   if state.unknown.len > 2:
     png.chunks.add state.unknown[2]
-  
+
   png.addChunkIEND()
   result = png
 
@@ -2940,22 +2925,22 @@ proc PNGEncode*(input: string, colorType: PNGcolorType, bitDepth, w, h: int, set
   state.modeIn.colorType = colorType
   state.modeIn.bitDepth = bitDepth
   result = PNGEncode(input, w, h, state)
-  
+
 proc PNGEncode32*(input: string, w, h: int): PNG =
   result = PNGEncode(input, LCT_RGBA, 8, w, h)
 
 proc PNGEncode24*(input: string, w, h: int): PNG =
   result = PNGEncode(input, LCT_RGB, 8, w, h)
-  
+
 proc writeChunks*(png: PNG, s: Stream) =
   s.write PNGSignature
-  
+
   for chunk in png.chunks:
     if not chunk.validateChunk(png): raise PNGError("combine chunk validation error")
     if not chunk.writeChunk(png): raise PNGError("combine chunk write error")
     chunk.length = chunk.data.len
     chunk.crc = crc32(crc32(0, $chunk.chunkType), chunk.data)
-    
+
     s.writeInt32BE chunk.length
     s.writeInt32BE int(chunk.chunkType)
     s.write chunk.data
@@ -2966,29 +2951,31 @@ proc savePNG32*(fileName, input: string, w, h: int): bool =
     var png = PNGEncode(input, LCT_RGBA, 8, w, h)
     var s = newFileStream(fileName, fmWrite)
     png.writeChunks s
+    s.close()
     result = true
   except:
     debugEcho getCurrentExceptionMsg()
-    result = false 
+    result = false
 
 proc savePNG24*(fileName, input: string, w, h: int): bool =
   try:
     var png = PNGEncode(input, LCT_RGB, 8, w, h)
     var s = newFileStream(fileName, fmWrite)
     png.writeChunks s
+    s.close()
     result = true
   except:
     debugEcho getCurrentExceptionMsg()
     result = false
-    
+
 proc getFilterTypesInterlaced(png: PNG): seq[string] =
   var header = PNGHeader(png.getChunk(IHDR))
   var idat = PNGData(png.getChunk(IDAT))
-  
+
   if header.interlaceMethod == IM_NONE:
     result = newSeq[string](1)
     result[0] = ""
-    
+
     #A line is 1 filter byte + all pixels
     let lineBytes = 1 + idatRawSize(header.width, 1, header)
     var i = 0
@@ -3001,10 +2988,10 @@ proc getFilterTypesInterlaced(png: PNG): seq[string] =
       result[j] = ""
       var w2 = (header.width - ADAM7_IX[j] + ADAM7_DX[j] - 1) div ADAM7_DX[j]
       var h2 = (header.height - ADAM7_IY[j] + ADAM7_DY[j] - 1) div ADAM7_DY[j]
-      if(ADAM7_IX[j] >= header.width) or (ADAM7_IY[j] >= header.height): 
+      if(ADAM7_IX[j] >= header.width) or (ADAM7_IY[j] >= header.height):
         w2 = 0
         h2 = 0
-        
+
       let lineBytes = 1 + idatRawSize(w2, 1, header)
       var pos = 0
       for i in 0..h2-1:
@@ -3013,7 +3000,7 @@ proc getFilterTypesInterlaced(png: PNG): seq[string] =
 
 proc getFilterTypes*(png: PNG): string =
   var passes = getFilterTypesInterlaced(png)
-  
+
   if passes.len == 1:
     result = passes[0]
   else:
