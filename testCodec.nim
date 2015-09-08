@@ -11,8 +11,8 @@ proc fromBase64(input: string): string =
   result = base64.decode(input)
   
 proc assertEquals[T, U](expected: T, actual: U, message = "") =
-  if expected != actual.T:
-    echo "Error: Not equal! Expected ", expected, " got ", actual.T, ". ",
+  if expected != actual:
+    echo "Error: Not equal! Expected ", expected, " got ", actual, ". ",
       "Message: ", message
     quit()
 
@@ -59,7 +59,7 @@ proc assertPixels(image: Image, decoded: string, message: string) =
     assertEquals(byte_expected, byte_actual, message & " " & $i)
 
 proc doCodecTest(image: Image, state: PNGEncoder) =
-  var png = PNGEncode(image.data, image.colorType, image.bitDepth, image.width, image.height, state)
+  var png = encodePNG(image.data, image.colorType, image.bitDepth, image.width, image.height, state)
   var s = newStringStream()
   png.writeChunks s
 
@@ -68,10 +68,10 @@ proc doCodecTest(image: Image, state: PNGEncoder) =
     #assertTrue(s.data.len < image.data.len, "compressed size")
   
   s.setPosition 0
-  var decoded = s.PNGDecode(image.colorType, image.bitDepth)
+  var decoded = s.decodePNG(image.colorType, image.bitDepth)
 
-  assert image.width == decoded.width
-  assert image.height == decoded.height
+  assertEquals(image.width, decoded.width)
+  assertEquals(image.height, decoded.height)
   
   if state == nil:
     assertPixels(image, decoded.data, "Pixels")
@@ -270,45 +270,45 @@ proc testPNGCodec() =
 proc doPngSuiteTinyTest(b64: string, w, h, r, g, b, a: int) =
   var input = fromBase64(b64)
   var s = newStringStream(input)
-  var decoded = s.PNGDecode(LCT_RGBA, 8)
+  var decoded = s.decodePNG(LCT_RGBA, 8)
 
-  assert decoded.width == w
-  assert decoded.height == h
-  assert r == decoded.data[0].int
-  assert g == decoded.data[1].int
-  assert b == decoded.data[2].int
-  assert a == decoded.data[3].int
+  assertEquals (w, decoded.width)
+  assertEquals (h, decoded.height)
+  assertEquals (r, decoded.data[0].int)
+  assertEquals (g, decoded.data[1].int)
+  assertEquals (b, decoded.data[2].int)
+  assertEquals (a, decoded.data[3].int)
   
   var state = makePNGEncoder()
   state.autoConvert = false
-  var png = PNGEncode(decoded.data, LCT_RGBA, 8, w, h, state)
+  var png = encodePNG(decoded.data, LCT_RGBA, 8, w, h, state)
   s = newStringStream()
   png.writeChunks s
   s.setPosition 0
   
-  var decoded2 = s.PNGDecode(LCT_RGBA, 8)
+  var decoded2 = s.decodePNG(LCT_RGBA, 8)
   for i in 0..decoded.data.high:
-    assert decoded.data[i] == decoded2.data[i]
+    assertEquals(decoded.data[i], decoded2.data[i])
 
 #checks that both png suite images have the exact same pixel content, e.g. to check that
 #it decodes an interlaced and non-interlaced corresponding png suite image equally
 proc doPngSuiteEqualTest(b64a, b64b: string) =
   var input1 = fromBase64(b64a)
   var s1 = newStringStream(input1)
-  var decoded1 = s1.PNGDecode(LCT_RGBA, 8)
+  var decoded1 = s1.decodePNG(LCT_RGBA, 8)
 
   var input2 = fromBase64(b64b)
   var s2 = newStringStream(input2)
-  var decoded2 = s2.PNGDecode(LCT_RGBA, 8)
+  var decoded2 = s2.decodePNG(LCT_RGBA, 8)
 
-  assert decoded1.height == decoded2.height
-  assert decoded1.width == decoded2.width
+  assertEquals (decoded1.height, decoded2.height)
+  assertEquals (decoded1.width, decoded2.width)
 
   let size = decoded1.height * decoded1.width * 4
   for i in 0.. <size:
     if decoded1.data[i] != decoded2.data[i]:
       echo "x: ", ((i div 4) mod decoded1.width), " y: ", ((i div 4) mod decoded1.width), " c: ", i mod 4
-      assert decoded1.data[i] == decoded2.data[i]
+      assertEquals(decoded1.data[i], decoded2.data[i])
   
 proc testPngSuiteTiny() =
   echo "testPngSuiteTiny"
@@ -423,7 +423,7 @@ proc createComplexPNG(): string =
   state.addUnknownChunk("uNKb", "b00")
   state.addUnknownChunk("uNKc", "c00")
   
-  var png = PNGEncode(image, w, h, state)
+  var png = encodePNG(image, w, h, state)
   var s = newStringStream()
   png.writeChunks s
   result = s.data
@@ -433,12 +433,12 @@ proc testPaletteFilterTypesZero() =
   echo "testPaletteFilterTypesZero"
   var raw = createComplexPNG()
   var s = newStringStream(raw)
-  var png = s.PNGDecode()
+  var png = s.decodePNG()
   var filterTypes = png.getFilterTypes()
 
-  assert 17 == filterTypes.len
+  assertEquals(17, filterTypes.len)
   for i in 0..16: 
-    assert 0.chr == filterTypes[i]
+    assertEquals(0.chr, filterTypes[i])
 
 proc testComplexPNG() =
   echo "testComplexPNG"
@@ -449,28 +449,28 @@ proc testComplexPNG() =
   state.readTextChunks = true
   state.rememberUnknownChunks = true
   
-  var png = s.PNGDecode(state)
+  var png = s.decodePNG(state)
   var info = png.getInfo()
       
-  assert 16 == info.width
-  assert 17 == info.height
-  assert true == info.backgroundDefined
-  assert 127 == info.backgroundR
-  assert true == info.timeDefined
-  assert 2012 == info.year
-  assert 1 == info.month
-  assert 2 == info.day
-  assert 3 == info.hour
-  assert 4 == info.minute
-  assert 5 == info.second
-  assert true == info.physDefined
-  assert 1 == info.physX
-  assert 2 == info.physY
-  assert 1 == info.physUnit
+  assertEquals (16, info.width)
+  assertEquals (17, info.height)
+  assertEquals (true, info.backgroundDefined)
+  assertEquals (127 , info.backgroundR)
+  assertEquals (true , info.timeDefined)
+  assertEquals (2012 , info.year)
+  assertEquals (1 , info.month)
+  assertEquals (2 , info.day)
+  assertEquals (3 , info.hour)
+  assertEquals (4 , info.minute)
+  assertEquals (5 , info.second)
+  assertEquals (true , info.physDefined)
+  assertEquals (1 , info.physX)
+  assertEquals (2 , info.physY)
+  assertEquals (1 , info.physUnit)
   
   let chunkNames = png.getChunkNames()
   let expectedNames = "IHDR uNKa PLTE tRNS bKGD pHYs uNKb IDAT tIME zTXt zTXt tEXt iTXt iTXt uNKc IEND"
-  assert expectedNames == chunkNames
+  assertEquals (expectedNames, chunkNames)
 
   #TODO: test strings and unknown chunks too
 
@@ -486,12 +486,12 @@ proc testPredefinedFilters() =
   state.filterStrategy = LFS_PREDEFINED
   state.filterPaletteZero = false
   state.predefinedFilters = repeat(chr(3), h) #everything to filter type '3'
-  var png = PNGEncode(image.data, w, h, state)
+  var png = encodePNG(image.data, w, h, state)
   var outFilters = png.getFilterTypes()
   
-  assert outFilters.len == h
+  assertEquals(h, outFilters.len)
   for i in 0.. <h:
-    assert chr(3) == outFilters[i]
+    assertEquals(chr(3), outFilters[i])
 
 proc testColorKeyConvert() =
   echo "testColorKeyConvert"
@@ -507,25 +507,25 @@ proc testColorKeyConvert() =
     image[i * 4 + 2] = 0.chr
     image[i * 4 + 3] = if i == 23: 0.chr else: 255.chr
   
-  var raw = PNGEncode(image, w, h)
+  var raw = encodePNG(image, w, h)
   var s = newStringStream()
   raw.writeChunks s
   s.setPosition 0
   
-  var png = s.PNGDecode()
+  var png = s.decodePNG()
   var info = png.getInfo()
   var image2 = png.convert(LCT_RGBA, 8)
   
-  assert 32 == info.width
-  assert 32 == info.height
-  assert true  == info.mode.keyDefined
-  assert 23 == info.mode.keyR
-  assert 0  == info.mode.keyG
-  assert 0  == info.mode.keyB
-  assert image.len == image2.data.len
+  assertEquals (32 , info.width)
+  assertEquals (32 , info.height)
+  assertEquals (true  , info.mode.keyDefined)
+  assertEquals (23 , info.mode.keyR)
+  assertEquals (0  , info.mode.keyG)
+  assertEquals (0  , info.mode.keyB)
+  assertEquals (image.len , image2.data.len)
   
   for i in 0..image.high:
-    assert image[i] == image2.data[i]
+    assertEquals(image[i], image2.data[i])
 
 proc removeSpaces(input: string): string =
   result = ""
@@ -667,7 +667,7 @@ proc testColorConvert2() =
       convert(inp, eight.cstring, modeIn, mode_8, 3 * 3)
       convert(outp, inp, modeOut, modeIn, 3 * 3) #Test input to output type
       convert(e2p, outp, mode_8, modeOut, 3 * 3)
-      assert eight == eight2
+      assertEquals(eight, eight2)
 
 #tests that there are no crashes with auto color chooser in case of palettes with translucency etc...
 proc testPaletteToPaletteConvert() =
@@ -685,13 +685,13 @@ proc testPaletteToPaletteConvert() =
   state.modeOut.bitDepth = 8
   state.modeIn.bitDepth = 8
   
-  assert true == state.autoConvert
+  assertEquals(true, state.autoConvert)
   
   for i in 0..255:
     state.modeIn.addPalette(i, i, i, i)
     state.modeOut.addPalette(i, i, i, i)
     
-  discard PNGEncode(image, w, h, state)
+  discard encodePNG(image, w, h, state)
 
 #for this test, you have to choose palette colors that cause PNG to actually use a palette,
 #so don't use all greyscale colors for example
@@ -706,25 +706,25 @@ proc doRGBAToPaletteTest(palette: openArray[int], expectedType = LCT_PALETTE) =
   for i in 0..image.high: 
     image[i] = palette[i mod palette.len].chr
     
-  var raw = PNGEncode(image, w, h)
+  var raw = encodePNG(image, w, h)
   var s = newStringStream()
   raw.writeChunks s
   
   s.setPosition 0
-  var png2 = s.PNGDecode()
+  var png2 = s.decodePNG()
   var info = png2.getInfo()
   var image2 = png2.convert(LCT_RGBA, 8)
     
-  assert image2.data == image
+  assertEquals(image2.data, image)
   
-  assert expectedType == info.mode.colorType
+  assertEquals(expectedType, info.mode.colorType)
   if expectedType == LCT_PALETTE:
-    assert ((palette.len div 4) == info.mode.paletteSize)
+    assertEquals ((palette.len div 4), info.mode.paletteSize)
     for i in 0..info.mode.palette.high:
-      assert info.mode.palette[i].r == image[i * 4 + 0]
-      assert info.mode.palette[i].g == image[i * 4 + 1]
-      assert info.mode.palette[i].b == image[i * 4 + 2]
-      assert info.mode.palette[i].a == image[i * 4 + 3]
+      assertEquals (info.mode.palette[i].r, image[i * 4 + 0])
+      assertEquals (info.mode.palette[i].g, image[i * 4 + 1])
+      assertEquals (info.mode.palette[i].b, image[i * 4 + 2])
+      assertEquals (info.mode.palette[i].a, image[i * 4 + 3])
       
 proc testRGBToPaletteConvert() =
   const
@@ -764,17 +764,17 @@ proc test16bitColorEndianness() =
   var s = newStringStream(png)
   
   #Decode from 16-bit grey image to 16-bit per channel RGBA
-  var decoded = s.PNGDecode(LCT_RGBA, 16)
-  assert 0x09 == decoded.data[8].ord
-  assert 0x00 == decoded.data[9].ord
+  var decoded = s.decodePNG(LCT_RGBA, 16)
+  assertEquals(0x09, decoded.data[8].ord)
+  assertEquals(0x00, decoded.data[9].ord)
 
   #Decode from 16-bit grey image to 16-bit grey raw image (no conversion)
   var state = makePNGDecoder()
   state.colorConvert = false
   s.setPosition 0
-  var raw = s.PNGDecode(state)
-  assert 0x09 == raw.pixels[2].ord
-  assert 0x00 == raw.pixels[3].ord
+  var raw = s.decodePNG(state)
+  assertEquals(0x09, raw.pixels[2].ord)
+  assertEquals(0x00, raw.pixels[3].ord)
 
   #Decode from 16-bit per channel RGB image to 16-bit per channel RGBA
   base64 = "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgEAIAAACsiDHgAAAABGdBTUEAAYagMeiWXwAAAANzQklU" &
@@ -784,17 +784,17 @@ proc test16bitColorEndianness() =
 
   png = fromBase64(base64)
   s = newStringStream(png)
-  decoded = s.PNGDecode(LCT_RGBA, 16)
+  decoded = s.decodePNG(LCT_RGBA, 16)
   
-  assert 0x1f == decoded.data[258].ord
-  assert 0xf9 == decoded.data[259].ord
+  assertEquals (0x1f, decoded.data[258].ord)
+  assertEquals (0xf9, decoded.data[259].ord)
 
   #Decode from 16-bit per channel RGB image to 16-bit per channel RGBA raw image (no conversion)
   s.setPosition 0
-  raw = s.PNGDecode(state)
+  raw = s.decodePNG(state)
  
-  assert 0x1f == raw.pixels[194].ord
-  assert 0xf9 == raw.pixels[195].ord
+  assertEquals (0x1f, raw.pixels[194].ord)
+  assertEquals (0xf9, raw.pixels[195].ord)
 
   #Decode from palette image to 16-bit per channel RGBA
   base64 = "iVBORw0KGgoAAAANSUhEUgAAAAcAAAAHAgMAAAC5PL9AAAAABGdBTUEAAYagMeiWXwAAAANzQklU" &
@@ -803,10 +803,10 @@ proc test16bitColorEndianness() =
   
   png = fromBase64(base64)
   s = newStringStream(png)
-  decoded = s.PNGDecode(LCT_RGBA, 16)
+  decoded = s.decodePNG(LCT_RGBA, 16)
   
-  assert 0x77 == decoded.data[84].ord
-  assert 0x77 == decoded.data[85].ord
+  assertEquals (0x77, decoded.data[84].ord)
+  assertEquals (0x77, decoded.data[85].ord)
 
 proc testNoAutoConvert() =
   echo "testNoAutoConvert"
@@ -827,21 +827,21 @@ proc testNoAutoConvert() =
   state.modeOut.colorType = LCT_RGBA
   state.modeOut.bitDepth = 8
   state.autoConvert = false
-  var png = PNGEncode(image, w, h, state)
+  var png = encodePNG(image, w, h, state)
   
   var s = newStringStream()
   png.writeChunks s
   s.setPosition 0
   
-  var raw = s.PNGDecode()
+  var raw = s.decodePNG()
   var info = raw.getInfo()
     
-  assert 32 == info.width
-  assert 32 == info.height
+  assertEquals (32 , info.width)
+  assertEquals (32 , info.height)
   
-  assert LCT_RGBA == info.mode.colorType
-  assert 8 == info.mode.bitDepth
-  assert image == raw.pixels
+  assertEquals (LCT_RGBA , info.mode.colorType)
+  assertEquals (8 , info.mode.bitDepth)
+  assertEquals (image , raw.pixels)
 
 #colors is in RGBA, inbitDepth must be 8 or 16, the amount of bits per channel.
 #colorType and bitDepth are the expected values. insize is amount of pixels. So the amount of bytes is insize * 4 * (inbitDepth / 8)
@@ -854,36 +854,24 @@ proc testAutoColorModel(colors: string, inbitDepth: int, colorType: PNGcolorType
   for i in 0..colors2.high:
     colors2[i] = colors[i mod colors.len]
 
-  var png = PNGEncode(colors2, LCT_RGBA, inbitDepth, num, 1)
+  var png = encodePNG(colors2, LCT_RGBA, inbitDepth, num, 1)
   var s = newStringStream()
   png.writeChunks s
 
   #now extract the color type it chose
   s.setPosition 0
-  var raw = s.PNGDecode()
+  var raw = s.decodePNG()
   var info = raw.getInfo()
   var decoded = raw.convert(LCT_RGBA, inbitdepth)
   
-  assert num == info.width
-  assert 1 == info.height
-  assert colorType == info.mode.colorType
-  assert bitDepth == info.mode.bitDepth
-  assert key == info.mode.keyDefined
+  assertEquals (num , info.width)
+  assertEquals (1 , info.height)
+  assertEquals (colorType , info.mode.colorType)
+  assertEquals (bitDepth , info.mode.bitDepth)
+  assertEquals (key , info.mode.keyDefined)
   
-  #if inbitDepth == 8:
   for i in 0..colors.high:
-    if colors[i] != decoded.data[i]:
-      colors.toHex
-      echo "ONE"
-      decoded.data.substr(0, colors.len * 2).toHex
-    assert colors[i] == decoded.data[i]
-  #else :
-  #  
-  
-  #  
-  #  let len = colors.len div 2
-  #  for i in 0.. <len:
-  #    assert colors[i * 2] == decoded.data[i]
+    assertEquals (colors[i], decoded.data[i])
 
 proc addColor(colors: var string, r, g, b, a: int) =
   colors.add r.chr

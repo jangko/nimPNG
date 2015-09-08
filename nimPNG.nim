@@ -2812,15 +2812,6 @@ proc addChunkIEND(png: PNG) =
   var chunk = make[PNGEnd](IEND, 0)
   png.chunks.add chunk
 
-proc `$`(colorType: PNGColorType): string =
-  case colorType
-  of LCT_GREY: result = "LCT_GREY"
-  of LCT_RGB: result = "LCT_RGB"
-  of LCT_PALETTE: result = "LCT_PALETTE"
-  of LCT_GREY_ALPHA: result = "LCT_GREY_ALPHA"
-  of LCT_RGBA: result = "LCT_RGBA"
-  else: result = "LCT_UNKNOWN"
-
 proc encodePNG*(input: string, w, h: int, settings = PNGEncoder(nil)): PNG =
   var png: PNG
   new(png)
