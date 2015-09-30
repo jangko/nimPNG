@@ -1,6 +1,5 @@
 #nimPNG
-Portable Network Graphics Encoder and Decoder written in Nim
-store lossless image with good compression
+Portable Network Graphics Encoder and Decoder written in Nim store lossless image with good compression
 
 all PNG standard color mode are supported:
 
@@ -43,5 +42,42 @@ Supported color conversions:
 - removing alpha channel
 - higher to smaller bitdepth, and vice versa
 
-###Feature planned:
+###Planned Feature(s):
 - streaming for progressive loading
+
+##Basic Usage
+```nimrod
+import nimPNG
+
+let png = loadPNG32("image.png")
+#is equivalent to:
+#let png = loadPNG("image.png", LCT_RGBA, 8)
+#will produce rgba pixels:
+#png.width -> width of the image
+#png.height -> height of the image
+#png.data -> pixels data in RGBA format
+```
+
+if you already have the whole file in memory
+let png = decodePNG32(raw_bytes)
+will do the same as above
+
+other variants:
+loadPNG24 -> will produce pixels in RGB format 8 bpp
+decodePNG24 -> load png from memory instead of file
+
+to create PNG:
+savePNG32("output.png", rgba_pixels, width, height)
+or savePNG24
+encodePNG32(rgba_pixels, width, height)
+or encodePNG24
+
+use **loadPNG** or **savePNG** if you need specific input/output format by supplying supported **colorType** and **bitDepth** information. Use **encodePNG** or **decodePNG** to do in memory encoding/decoding by supplying desired colorType and bitDepth information
+
+pixels are stored as raw bytes using Nim's string as container. 
+r1,g1,b1,a1,r2,g2,b2,a1,...,rn,gn,bn,an   -> RGBA format 8 bit
+r1,g1,b1,r2,g2,b2,...,rn,gn,bn   -> RGB format 8 bit
+grey1,grey2,grey3, ..., greyn  -> GREY format 8 bit
+grey1,alpha1,grey2,alpha2,...,greyn,alphan  -> GREY ALPHA format 8 bit
+
+

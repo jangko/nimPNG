@@ -2937,27 +2937,22 @@ proc writeChunks*(png: PNG, s: Stream) =
     s.write chunk.data
     s.writeInt32BE cast[int](chunk.crc)
 
+proc savePNG*(fileName, input: string, colorType: PNGcolorType, bitDepth, w, h: int): bool =
+  try:
+    var png = encodePNG(input, colorType, bitDepth, w, h)
+    var s = newFileStream(fileName, fmWrite)
+    png.writeChunks s
+    s.close()
+    result = true
+  except:
+    debugEcho getCurrentExceptionMsg()
+    result = false
+    
 proc savePNG32*(fileName, input: string, w, h: int): bool =
-  try:
-    var png = encodePNG(input, LCT_RGBA, 8, w, h)
-    var s = newFileStream(fileName, fmWrite)
-    png.writeChunks s
-    s.close()
-    result = true
-  except:
-    debugEcho getCurrentExceptionMsg()
-    result = false
-
+  result = savePNG(fileName, input, LCT_RGBA, 8, w, h)
+  
 proc savePNG24*(fileName, input: string, w, h: int): bool =
-  try:
-    var png = encodePNG(input, LCT_RGB, 8, w, h)
-    var s = newFileStream(fileName, fmWrite)
-    png.writeChunks s
-    s.close()
-    result = true
-  except:
-    debugEcho getCurrentExceptionMsg()
-    result = false
+  result = savePNG(fileName, input, LCT_RGB, 8, w, h)
 
 proc getFilterTypesInterlaced(png: PNG): seq[string] =
   var header = PNGHeader(png.getChunk(IHDR))
