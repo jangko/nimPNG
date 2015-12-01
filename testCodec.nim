@@ -1,4 +1,4 @@
-import nimPNG, streams, math, unsigned, strutils, tables, base64
+import nimPNG, streams, math, strutils, tables, base64
 
 type
   Image = ref object

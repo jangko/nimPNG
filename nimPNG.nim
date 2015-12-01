@@ -25,10 +25,10 @@
 # part of nimPDF sister projects
 #-------------------------------------
 
-import unsigned, streams, endians, tables, hashes, math, nimz
+import streams, endians, tables, hashes, math, nimz
 
 const
-  NIM_PNG_VERSION = "0.1.1"
+  NIM_PNG_VERSION = "0.1.3"
 
 type
   PNGChunkType = distinct int32
@@ -354,8 +354,8 @@ proc bitDepthAllowed(colorType: PNGcolorType, bitDepth: int): bool =
   of LCT_PALETTE: result = bitDepth in {1, 2, 4, 8}
   else: result = bitDepth in {8, 16}
 
-method validateChunk(chunk: PNGChunk, png: PNG): bool = true
-method parseChunk(chunk: PNGChunk, png: PNG): bool = true
+method validateChunk(chunk: PNGChunk, png: PNG): bool {.base.} = true
+method parseChunk(chunk: PNGChunk, png: PNG): bool {.base.} = true
 
 method validateChunk(header: PNGHeader, png: PNG): bool =
   if header.width < 1 or header.width > 0x7FFFFFFF:
@@ -714,7 +714,8 @@ method parseChunk(chunk: PNGSbit, png: PNG): bool =
 
   result = true
 
-proc make[T](): T = new(result)
+proc make[T](): T = 
+  result = new(T)
 
 proc createChunk(png: PNG, chunkType: PNGChunkType, data: string, crc: uint32): PNGChunk =
   var settings = PNGDecoder(png.settings)
@@ -1072,7 +1073,7 @@ proc getColorMode(png: PNG): PNGColorMode =
   result = cm
 
 proc getInfo*(png: PNG): PNGInfo =
-  new(result)
+  result = new(PNGInfo)
   result.mode = png.getColorMode()
   var header = PNGHeader(png.getChunk(IHDR))
   result.width = header.width
@@ -1351,8 +1352,8 @@ type
   pixelRGBA8     = proc(p: RGBA8, output: var cstring, px: int, mode: PNGColorMode, ct: ColorTree8)
   pixelRGBA16    = proc(p: RGBA16, output: var cstring, px: int, mode: PNGColorMode)
 
-proc hash*(c: RGBA8): THash =
-  var h: THash = 0
+proc hash*(c: RGBA8): Hash =
+  var h: Hash = 0
   h = h !& ord(c.r)
   h = h !& ord(c.g)
   h = h !& ord(c.b)
@@ -1886,7 +1887,7 @@ type
 
 proc makePNGEncoder*(): PNGEncoder =
   var s: PNGEncoder
-  new(s)
+  s = new(PNGEncoder)
   s.filterPaletteZero = true
   s.filterStrategy = LFS_MINSUM
   s.autoConvert = true
@@ -1923,7 +1924,7 @@ proc addIText*(state: PNGEncoder, keyword, langtag, transkey, text: string) =
   state.itextList.add itext
 
 proc make[T](chunkType: PNGChunkType, estimateSize: int): T =
-  new(result)
+  result = new(T)
   result.chunkType = chunkType
   if estimateSize > 0: result.data = newStringOfCap(estimateSize)
   else: result.data = ""
@@ -1965,7 +1966,7 @@ proc writeInt32BE(s: Stream, value: int) =
   bigEndian32(addr(tmp), addr(val))
   s.write(tmp)
 
-method writeChunk(chunk: PNGChunk, png: PNG): bool = true
+method writeChunk(chunk: PNGChunk, png: PNG): bool {.base.} = true
 
 method writeChunk(chunk: PNGHeader, png: PNG): bool =
   #estimate 13 bytes
@@ -1984,11 +1985,6 @@ method writeChunk(chunk: PNGPalette, png: PNG): bool =
     chunk.writeByte(int(px.r))
     chunk.writeByte(int(px.g))
     chunk.writeByte(int(px.b))
-  result = true
-
-method writeChunk(chunk: PNGData, png: PNG): bool =
-  var nz = nzDeflateInit(chunk.idat)
-  chunk.data = zlib_compress(nz)
   result = true
 
 method writeChunk(chunk: PNGTrans, png: PNG): bool =
@@ -2055,45 +2051,6 @@ method writeChunk(chunk: PNGText, png: PNG): bool =
   chunk.writeString chunk.text
   result = true
 
-method writeChunk(chunk: PNGZtxt, png: PNG): bool =
-  #estimate chunk.keyword.len + 2
-  chunk.writeString chunk.keyword
-  chunk.writeByte 0 #null separator
-  chunk.writeByte 0 #compression method(0: deflate)
-  var nz = nzDeflateInit(chunk.text)
-  chunk.writeString zlib_compress(nz)
-  result = true
-
-method writeChunk(chunk: PNGItxt, png: PNG): bool =
-  #estimate chunk.keyword.len + 2
-  # + chunk.languageTag.len + chunk.translatedKeyword.len
-  let state = PNGEncoder(png.settings)
-  var compressed: int
-  var text: string
-  if state.textCompression:
-    var nz = nzDeflateInit(chunk.text)
-    var zz = zlib_compress(nz)
-    if zz.len >= chunk.text.len:
-      compressed = 0
-      text = chunk.text
-    else:
-      compressed = 1
-      text = zz
-  else:
-    compressed = 0
-    text = chunk.text
-
-  chunk.writeString chunk.keyword
-  chunk.writeByte 0 #null separator
-  chunk.writeByte compressed #compression flag(0: uncompressed, 1: compressed)
-  chunk.writeByte 0 #compression method(0: deflate)
-  chunk.writeString chunk.languageTag
-  chunk.writeByte 0 #null separator
-  chunk.writeString chunk.translatedKeyword
-  chunk.writeByte 0 #null separator
-  chunk.writeString text
-  result = true
-
 method writeChunk(chunk: PNGGamma, png: PNG): bool =
   #estimate 4 bytes
   chunk.writeInt32(chunk.gamma)
@@ -2156,6 +2113,50 @@ method writeChunk(chunk: PNGHist, png: PNG): bool =
     chunk.writeInt16 c
   result = true
 
+method writeChunk(chunk: PNGData, png: PNG): bool =
+  var nz = nzDeflateInit(chunk.idat)
+  chunk.data = zlib_compress(nz)
+  result = true
+
+method writeChunk(chunk: PNGZtxt, png: PNG): bool =
+  #estimate chunk.keyword.len + 2
+  chunk.writeString chunk.keyword
+  chunk.writeByte 0 #null separator
+  chunk.writeByte 0 #compression method(0: deflate)
+  var nz = nzDeflateInit(chunk.text)
+  chunk.writeString zlib_compress(nz)
+  result = true
+
+method writeChunk(chunk: PNGItxt, png: PNG): bool =
+  #estimate chunk.keyword.len + 2
+  # + chunk.languageTag.len + chunk.translatedKeyword.len
+  let state = PNGEncoder(png.settings)
+  var compressed: int
+  var text: string
+  if state.textCompression:
+    var nz = nzDeflateInit(chunk.text)
+    var zz = zlib_compress(nz)
+    if zz.len >= chunk.text.len:
+      compressed = 0
+      text = chunk.text
+    else:
+      compressed = 1
+      text = zz
+  else:
+    compressed = 0
+    text = chunk.text
+
+  chunk.writeString chunk.keyword
+  chunk.writeByte 0 #null separator
+  chunk.writeByte compressed #compression flag(0: uncompressed, 1: compressed)
+  chunk.writeByte 0 #compression method(0: deflate)
+  chunk.writeString chunk.languageTag
+  chunk.writeByte 0 #null separator
+  chunk.writeString chunk.translatedKeyword
+  chunk.writeByte 0 #null separator
+  chunk.writeString text
+  result = true
+  
 proc isGreyscaleType(mode: PNGColorMode): bool =
   result = mode.colorType in {LCT_GREY, LCT_GREY_ALPHA}
 

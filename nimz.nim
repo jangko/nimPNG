@@ -1,4 +1,4 @@
-import streams, sequtils, algorithm, strutils, unsigned
+import streams, sequtils, algorithm, strutils
 
 const
   FIRST_LENGTH_CODE_INDEX = 257
@@ -84,39 +84,39 @@ type
   Coins = seq[Coin]
 
   #Possible inflate modes between inflate() calls
-  inflateMode = enum
-    HEAD,       # i: waiting for magic header
-    FLAGS,      # i: waiting for method and flags (gzip)
-    TIME,       # i: waiting for modification time (gzip)
-    OS,         # i: waiting for extra flags and operating system (gzip)
-    EXLEN,      # i: waiting for extra length (gzip)
-    EXTRA,      # i: waiting for extra bytes (gzip)
-    NAME,       # i: waiting for end of file name (gzip)
-    COMMENT,    # i: waiting for end of comment (gzip)
-    HCRC,       # i: waiting for header crc (gzip)
-    DICTID,     # i: waiting for dictionary check value
-    DICT,       # waiting for inflateSetDictionary() call
-    TYPE,         # i: waiting for type bits, including last-flag bit
-    TYPEDO,       # i: same, but skip check to exit inflate on new block
-    STORED,       # i: waiting for stored size (length and complement)
-    COPY_FIRST,   # i/o: same as COPY below, but only first time in
-    COPY,         # i/o: waiting for input or output to copy stored block
-    TABLE,        # i: waiting for dynamic block table lengths
-    LENLENS,      # i: waiting for code length code lengths
-    CODELENS,     # i: waiting for length/lit and distance code lengths
-    LEN_FIRST,       # i: same as LEN below, but only first time in
-    LEN,             # i: waiting for length/lit/eob code
-    LENEXT,          # i: waiting for length extra bits
-    DIST,            # i: waiting for distance code
-    DISTEXT,         # i: waiting for distance extra bits
-    MATCH,           # o: waiting for output space to copy string
-    LIT,             # o: waiting for output space to write literal
-    CHECK,      # i: waiting for 32-bit check value
-    LENGTH,     # i: waiting for 32-bit length (gzip)
-    DONE,       # finished check, done -- remain here until reset
-    BAD,        # got a data error -- remain here until reset
-    MEM,        # got an inflate() memory error -- remain here until reset
-    SYNC        # looking for synchronization bytes to restart inflate()
+  #inflateMode = enum
+  #  HEAD,       # i: waiting for magic header
+  #  FLAGS,      # i: waiting for method and flags (gzip)
+  #  TIME,       # i: waiting for modification time (gzip)
+  #  OS,         # i: waiting for extra flags and operating system (gzip)
+  #  EXLEN,      # i: waiting for extra length (gzip)
+  #  EXTRA,      # i: waiting for extra bytes (gzip)
+  #  NAME,       # i: waiting for end of file name (gzip)
+  #  COMMENT,    # i: waiting for end of comment (gzip)
+  #  HCRC,       # i: waiting for header crc (gzip)
+  #  DICTID,     # i: waiting for dictionary check value
+  #  DICT,       # waiting for inflateSetDictionary() call
+  #  TYPE,         # i: waiting for type bits, including last-flag bit
+  #  TYPEDO,       # i: same, but skip check to exit inflate on new block
+  #  STORED,       # i: waiting for stored size (length and complement)
+  #  COPY_FIRST,   # i/o: same as COPY below, but only first time in
+  #  COPY,         # i/o: waiting for input or output to copy stored block
+  #  TABLE,        # i: waiting for dynamic block table lengths
+  #  LENLENS,      # i: waiting for code length code lengths
+  #  CODELENS,     # i: waiting for length/lit and distance code lengths
+  #  LEN_FIRST,       # i: same as LEN below, but only first time in
+  #  LEN,             # i: waiting for length/lit/eob code
+  #  LENEXT,          # i: waiting for length extra bits
+  #  DIST,            # i: waiting for distance code
+  #  DISTEXT,         # i: waiting for distance extra bits
+  #  MATCH,           # o: waiting for output space to copy string
+  #  LIT,             # o: waiting for output space to write literal
+  #  CHECK,      # i: waiting for 32-bit check value
+  #  LENGTH,     # i: waiting for 32-bit length (gzip)
+  #  DONE,       # finished check, done -- remain here until reset
+  #  BAD,        # got a data error -- remain here until reset
+  #  MEM,        # got an inflate() memory error -- remain here until reset
+  #  SYNC        # looking for synchronization bytes to restart inflate()
 
   nzStreamMode = enum
     nzsDeflate, nzsInflate
@@ -1190,7 +1190,7 @@ proc nzDeflate(nz: nzStream) =
   var hash: NZHash
   var blocksize = 0
   var insize = nz.data.len
-
+  
   if   nz.btype  > 2: raise newNZError("invalid block type")
   elif nz.btype == 0:
     nz.deflateNoCompression
@@ -1198,26 +1198,18 @@ proc nzDeflate(nz: nzStream) =
   elif nz.btype == 1: blocksize = insize
   else: blocksize = max(insize div 8 + 8, 65535) #if(nz.btype == 2)
     #if blocksize < 65535: blocksize = 65535
-
+  
   var numdeflateblocks = (insize + blocksize - 1) div blocksize
   if numdeflateblocks == 0: numdeflateblocks = 1
   nimzHashInit(hash, nz.windowsize)
-
+  
   for i in 0..numdeflateblocks-1:
     let final = (i == numdeflateblocks - 1)
     let datapos = i * blocksize
     let dataend = min(datapos + blocksize, insize)
-
+  
     if nz.btype == 1: nz.deflateFixed(hash, datapos, dataend, final)
     elif nz.btype == 2: nz.deflateDynamic(hash, datapos, dataend, final)
-
-let lorem_ipsum = """
-Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec a neque ac ligula pellentesque dictum et ut tortor. Fusce non sem egestas, interdum justo ac, scelerisque augue. Proin vitae massa ut lectus porttitor mattis. Mauris blandit lectus massa, nec iaculis lacus auctor et. Proin aliquet molestie arcu, in finibus ligula mattis sed. Cras ut pulvinar ante, et elementum neque. Praesent tincidunt erat mi, non imperdiet nisi consectetur in. Nam luctus in ex non commodo. Fusce euismod consequat ipsum.
-Vestibulum augue leo, fermentum ut velit laoreet, convallis posuere dui. Suspendisse potenti. Nulla facilisi. Quisque feugiat maximus cursus. Nunc quam massa, interdum quis sodales non, aliquet ut ligula. Ut scelerisque commodo urna, sed cursus ante tincidunt et. Sed vitae quam sed nisl varius porta. Maecenas bibendum feugiat lacus nec tempor. Sed ullamcorper aliquam viverra. Suspendisse vitae sem porta sem finibus facilisis vitae vel nunc. Quisque at nibh eu neque sodales consectetur. Praesent porta maximus leo, ut auctor lorem aliquam non. Quisque fringilla felis id semper laoreet.
-Sed quis vehicula purus. Mauris consectetur sem dui, vitae tincidunt tellus semper at. Cum sociis natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Fusce sed augue eros. Aenean non sagittis ligula. Vestibulum sit amet tincidunt diam. Sed purus ex, egestas id bibendum eu, venenatis vitae eros. Integer lobortis turpis ut risus tempor, nec accumsan urna feugiat. Pellentesque sed nisl ligula. Aenean mattis nisl ut ante sodales efficitur. Suspendisse turpis est, hendrerit at porttitor eget, feugiat vel eros. Etiam sodales a metus at malesuada.
-Mauris id sagittis dolor, ac facilisis risus. Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia Curae; Donec varius sagittis consectetur. Donec quis ex consequat, tempor enim ac, facilisis nisl. Proin interdum nisl vel orci feugiat, sit amet ultricies erat lobortis. Aenean nec semper neque. Duis scelerisque est ac enim gravida semper at vitae sapien. Maecenas eleifend auctor lacinia. Donec venenatis mi eget nibh pretium facilisis. Ut sit amet mauris eu dui maximus imperdiet eu in felis. Ut eu nibh eget orci tincidunt vulputate et vitae eros. Morbi ullamcorper elementum quam, ac tincidunt dolor. Aliquam in pulvinar metus. Suspendisse laoreet neque nisi, quis mollis risus tempor in. Etiam accumsan leo nec metus tristique, a pellentesque nisl fringilla. Sed at est egestas, facilisis mi at, pulvinar magna.
-Mauris tristique, lectus iaculis mattis fringilla, libero ex molestie ex, et finibus neque ante non velit. Nunc mollis consequat ultricies. Nam maximus metus velit, molestie fermentum ex ornare fermentum. Nam quis maximus magna. Aliquam bibendum sem tellus, at commodo lacus rhoncus a. Pellentesque vitae magna vel orci ullamcorper accumsan. Fusce condimentum magna magna, ut pretium odio semper id. Duis vitae arcu ac turpis vehicula interdum et nec risus.
-"""
 
 proc nzInit(nz: nzStream) =
   const DEFAULT_WINDOWSIZE = 2048
@@ -1232,8 +1224,7 @@ proc nzInit(nz: nzStream) =
   nz.lazymatching = true
 
 proc nzDeflateInit*(input: string): nzStream =
-  var nz : nzStream
-  new(nz)
+  var nz = new(nzStream)
   nz.nzInit
   nz.data = input
   nz.bits.data = ""
@@ -1242,8 +1233,7 @@ proc nzDeflateInit*(input: string): nzStream =
   result = nz
 
 proc nzInflateInit*(input: string): nzStream =
-  var nz : nzStream
-  new(nz)
+  var nz = new(nzStream)
   nz.nzInit
   nz.data = ""
   nz.bits.data = input
@@ -1303,7 +1293,7 @@ proc zlib_compress*(nz: nzStream): string =
   nz.bits.data.add chr(CMFFLG div 256)
   nz.bits.data.add chr(CMFFLG mod 256)
   nz.bits.bitpointer += 16
-
+  
   nz.nzDeflate
   nz.bits.add32bitInt nzAdler32(1, nz.data)
   result = nz.nzGetResult
