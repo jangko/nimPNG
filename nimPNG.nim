@@ -28,7 +28,7 @@
 import streams, endians, tables, hashes, math, nimz
 
 const
-  NIM_PNG_VERSION = "0.1.3"
+  NIM_PNG_VERSION = "0.1.5"
 
 type
   PNGChunkType = distinct int32
@@ -63,14 +63,14 @@ type
     IM_NONE = 0, IM_INTERLACED = 1
 
   PNGChunk = ref object of RootObj
-    length: range[0..0x7FFFFFFF]
+    length: int #range[0..0x7FFFFFFF]
     chunkType: PNGChunkType
     crc: uint32
     data: string
     pos: int
 
   PNGHeader = ref object of PNGChunk
-    width, height: range[1..0x7FFFFFFF]
+    width, height: int #range[1..0x7FFFFFFF]
     bitDepth: int
     colorType: PNGcolorType
     compressionMethod: int
@@ -92,12 +92,12 @@ type
     idat: string
 
   PNGTime = ref object of PNGChunk
-    year: range[0..65535]
-    month: range[1..12]
-    day: range[1..31]
-    hour: range[0..23]
-    minute: range[0..59]
-    second: range[0..60] #to allow for leap seconds
+    year: int #range[0..65535]
+    month: int #range[1..12]
+    day: int #range[1..31]
+    hour: int #range[0..23]
+    minute: int #range[0..59]
+    second: int #range[0..60] #to allow for leap seconds
 
   PNGPhys = ref object of PNGChunk
     physX, physY: int
@@ -175,12 +175,12 @@ type
     physX*, physY*, physUnit*: int
 
     timeDefined*: bool
-    year*: range[0..65535]
-    month*: range[1..12]
-    day*: range[1..31]
-    hour*: range[0..23]
-    minute*: range[0..59]
-    second*: range[0..60] #to allow for leap seconds
+    year*: int #range[0..65535]
+    month*: int #range[1..12]
+    day*: int #range[1..31]
+    hour*: int #range[0..23]
+    minute*: int #range[0..59]
+    second*: int #range[0..60] #to allow for leap seconds
 
   PNG* = ref object
     settings*: PNGSettings
@@ -714,8 +714,7 @@ method parseChunk(chunk: PNGSbit, png: PNG): bool =
 
   result = true
 
-proc make[T](): T = 
-  result = new(T)
+proc make[T](): T = new(result)
 
 proc createChunk(png: PNG, chunkType: PNGChunkType, data: string, crc: uint32): PNGChunk =
   var settings = PNGDecoder(png.settings)
@@ -1867,12 +1866,12 @@ type
     physX*, physY*, physUnit*: int
 
     timeDefined*: bool
-    year*: range[0..65535]
-    month*: range[1..12]
-    day*: range[1..31]
-    hour*: range[0..23]
-    minute*: range[0..59]
-    second*: range[0..60] #to allow for leap seconds
+    year*: int   #range[0..65535]
+    month*: int  #range[1..12]
+    day*: int    #range[1..31]
+    hour*: int   #range[0..23]
+    minute*: int #range[0..59]
+    second*: int #range[0..60] #to allow for leap seconds
 
     unknown*: seq[PNGUnknown]
 
@@ -2073,15 +2072,6 @@ method writeChunk(chunk: PNGStandarRGB, png: PNG): bool =
   chunk.writeByte(chunk.renderingIntent)
   result = true
 
-method writeChunk(chunk: PNGICCProfile, png: PNG): bool =
-  #estimate chunk.profileName.len + 2
-  chunk.writeString chunk.profileName
-  chunk.writeByte 0 #null separator
-  chunk.writeByte 0 #compression method(0: deflate)
-  var nz = nzDeflateInit(chunk.profile)
-  chunk.writeString zlib_compress(nz)
-  result = true
-
 method writeChunk(chunk: PNGSPalette, png: PNG): bool =
   #estimate chunk.paletteName.len + 2
   #if sampleDepth == 8: estimate += chunk.palette.len * 6
@@ -2106,7 +2096,7 @@ method writeChunk(chunk: PNGSPalette, png: PNG): bool =
       chunk.writeInt16(p.alpha)
       chunk.writeInt16(p.frequency)
   result = true
-
+  
 method writeChunk(chunk: PNGHist, png: PNG): bool =
   #estimate chunk.histogram.len * 2
   for c in chunk.histogram:
@@ -2155,6 +2145,15 @@ method writeChunk(chunk: PNGItxt, png: PNG): bool =
   chunk.writeString chunk.translatedKeyword
   chunk.writeByte 0 #null separator
   chunk.writeString text
+  result = true
+
+method writeChunk(chunk: PNGICCProfile, png: PNG): bool =
+  #estimate chunk.profileName.len + 2
+  chunk.writeString chunk.profileName
+  chunk.writeByte 0 #null separator
+  chunk.writeByte 0 #compression method(0: deflate)
+  var nz = nzDeflateInit(chunk.profile)
+  chunk.writeString zlib_compress(nz)
   result = true
   
 proc isGreyscaleType(mode: PNGColorMode): bool =

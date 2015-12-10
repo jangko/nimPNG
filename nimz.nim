@@ -251,7 +251,7 @@ proc init_coins(c: var Coins, num: int) =
 proc cleanup_coins(c: var Coins, num: int) =
   for i in 0..num-1: c[i].symbols = @[]
 
-proc coin_compare(a, b: Coin): int =
+proc cmpx(a, b: Coin): int =
   var wa = a.weight
   var wb = b.weight
   if wa > wb: result = 1
@@ -266,42 +266,30 @@ proc append_symbol_coins(coins: Coins, start: int, frequencies: openarray[int], 
       coins[j].symbols.add i
       inc j
 
-proc placePivot[T](a: var openArray[T], lo, hi: int, cmp: proc(x, y: T): int): int =
+proc placePivot[T](a: var openArray[T], lo, hi: int): int =
   var pivot = lo #set pivot
   var switch_i = lo + 1
+  let x = lo+1
 
-  for i in lo+1..hi: #run on array
-    if cmp(a[i], a[pivot]) <= 0:        #compare pivot and i
+  for i in x..hi: #run on array
+    if cmpx(a[i], a[pivot]) <= 0:        #compare pivot and i
       swap(a[i], a[switch_i])      #swap i and i to switch
       swap(a[pivot], a[switch_i])  #swap pivot and i to switch
       inc pivot    #set current location of pivot
       inc switch_i #set location for i to switch with pivot
   result = pivot #return pivot location
 
-proc quickSort[T](a: var openArray[T], lo, hi: int, cmp: proc(x, y: T): int) =
+proc quickSort[T](a: var openArray[T], lo, hi: int) =
   if lo >= hi: return #stop condition
   #set pivot location
-  var pivot = placePivot(a, lo, hi, cmp)
-  quickSort(a, lo, pivot-1, cmp) #sort bottom half
-  quickSort(a, pivot+1, hi, cmp) #sort top half
-
-proc quickSort[T](a: var openArray[T], cmp: proc(x, y: T): int, length = -1) =
+  var pivot = placePivot(a, lo, hi)
+  quickSort(a, lo, pivot-1) #sort bottom half
+  quickSort(a, pivot+1, hi) #sort top half
+        
+proc quickSort[T](a: var openArray[T], length = -1) =
   var lo = 0
   var hi = if length < 0: a.high else: length-1
-  quickSort(a, lo, hi, cmp)
-
-type
-  c_coin {.pure, final.} = object
-    w: float
-    idx: int
-
-proc c_coin_cmp(a, b: pointer): int {.exportc, procvar, cdecl.} =
-  var aa = cast[ptr c_coin](a)
-  var bb = cast[ptr c_coin](b)
-
-  if aa[].w > bb[].w: result = 1
-  elif aa[].w < bb[].w: result = -1
-  else: result = 0
+  quickSort(a, lo, hi)
 
 proc huffman_code_lengths(frequencies: openarray[int], numcodes, maxbitlen: int): seq[int] =
   var
@@ -311,7 +299,7 @@ proc huffman_code_lengths(frequencies: openarray[int], numcodes, maxbitlen: int)
     coins: Coins #the coins of the currently calculated row
     prev_row: Coins #the previous row of coins
     coinmem, numcoins: int
-
+  
   if numcodes == 0:
     raise newNZError("a tree of 0 symbols is not supposed to be made")
 
@@ -349,7 +337,7 @@ proc huffman_code_lengths(frequencies: openarray[int], numcodes, maxbitlen: int)
     append_symbol_coins(coins, 0, frequencies, numcodes, sum)
     numcoins = numpresent
 
-    coins.quickSort(coin_compare, numcoins)
+    coins.quickSort(numcoins)
 
     var numprev = 0
     for j in 1..maxbitlen: #each of the remaining rows
@@ -374,8 +362,8 @@ proc huffman_code_lengths(frequencies: openarray[int], numcodes, maxbitlen: int)
       if j < maxbitlen:
         append_symbol_coins(coins, numcoins, frequencies, numcodes, sum)
         inc(numcoins, numpresent)
-
-      coins.quickSort(coin_compare, numcoins)
+      
+      coins.quickSort(numcoins)
 
   #calculate the lengths of each symbol, as the amount of times a coin of each symbol is used
   var i = 0
@@ -1211,30 +1199,29 @@ proc nzDeflate(nz: nzStream) =
     if nz.btype == 1: nz.deflateFixed(hash, datapos, dataend, final)
     elif nz.btype == 2: nz.deflateDynamic(hash, datapos, dataend, final)
 
-proc nzInit(nz: nzStream) =
+proc nzInit(): nzStream =
   const DEFAULT_WINDOWSIZE = 2048
 
-  #compress with dynamic huffman tree
-  #(not in the mathematical sense, just not the predefined one)
-  nz.btype = 2
-  nz.use_lz77 = true
-  nz.windowsize = DEFAULT_WINDOWSIZE
-  nz.minmatch = 3
-  nz.nicematch = 128
-  nz.lazymatching = true
+  result = nzStream(
+    #compress with dynamic huffman tree
+    #(not in the mathematical sense, just not the predefined one)
+    btype : 2,
+    use_lz77: true,
+    windowsize: DEFAULT_WINDOWSIZE,
+    minmatch: 3,
+    nicematch: 128,
+    lazymatching: true)
 
 proc nzDeflateInit*(input: string): nzStream =
-  var nz = new(nzStream)
-  nz.nzInit
+  var nz = nzInit()
   nz.data = input
   nz.bits.data = ""
   nz.bits.bitpointer = 0
-  nz.mode = nzsDeflate
+  nz.mode = nzsDeflate  
   result = nz
 
 proc nzInflateInit*(input: string): nzStream =
-  var nz = new(nzStream)
-  nz.nzInit
+  var nz = nzInit()
   nz.data = ""
   nz.bits.data = input
   nz.bits.bitpointer = 0
