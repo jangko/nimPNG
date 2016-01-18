@@ -2096,7 +2096,7 @@ method writeChunk(chunk: PNGSPalette, png: PNG): bool =
       chunk.writeInt16(p.alpha)
       chunk.writeInt16(p.frequency)
   result = true
-  
+
 method writeChunk(chunk: PNGHist, png: PNG): bool =
   #estimate chunk.histogram.len * 2
   for c in chunk.histogram:
@@ -2155,7 +2155,7 @@ method writeChunk(chunk: PNGICCProfile, png: PNG): bool =
   var nz = nzDeflateInit(chunk.profile)
   chunk.writeString zlib_compress(nz)
   result = true
-  
+
 proc isGreyscaleType(mode: PNGColorMode): bool =
   result = mode.colorType in {LCT_GREY, LCT_GREY_ALPHA}
 
@@ -2376,42 +2376,41 @@ proc addPaddingBits(output: var cstring, input: cstring, olinebits, ilinebits, h
     for x in 0..diff-1: setBitOfReversedStream(obp, output, 0)
 
 proc filterScanLine(output: var cstring, scanLine, prevLine: cstring, len, byteWidth: int, filterType: PNGFilter0) =
-
   case filterType
   of FLT_NONE:
     for i in 0..len-1: output[i] = scanLine[i]
   of FLT_SUB:
     for i in 0..byteWidth-1: output[i] = scanLine[i]
     for i in byteWidth..len-1:
-      output[i] = chr(scanLine[i].uint8 - scanLine[i - byteWidth].uint8)
+      output[i] = chr(scanLine[i].uint - scanLine[i - byteWidth].uint)
   of FLT_UP:
     if prevLine != nil:
       for i in 0..len-1:
-        output[i] = chr(scanLine[i].uint8 - prevLine[i].uint8)
+        output[i] = chr(scanLine[i].uint - prevLine[i].uint)
     else:
       for i in 0..len-1: output[i] = scanLine[i]
   of FLT_AVERAGE:
     if prevLine != nil:
       for i in 0..byteWidth-1:
-        output[i] = chr(scanLine[i].uint8 - (prevLine[i].uint8 div 2))
+        output[i] = chr(scanLine[i].uint - (prevLine[i].uint div 2))
       for i in byteWidth..len-1:
-        output[i] = chr(scanLine[i].uint8 - ((scanLine[i - byteWidth].uint8 + prevLine[i].uint8) div 2))
+        output[i] = chr(scanLine[i].uint - ((scanLine[i - byteWidth].uint + prevLine[i].uint) div 2))
     else:
       for i in 0..byteWidth-1: output[i] = scanLine[i]
       for i in byteWidth..len-1:
-        output[i] = chr(scanLine[i].uint8 - (scanLine[i - byteWidth].uint8 div 2))
+        output[i] = chr(scanLine[i].uint - (scanLine[i - byteWidth].uint div 2))
   of FLT_PAETH:
     if prevLine != nil:
       #paethPredictor(0, prevLine[i], 0) is always prevLine[i]
       for i in 0..byteWidth-1:
-        output[i] = chr(scanLine[i].uint8 - prevLine[i].uint8)
+        output[i] = chr(scanLine[i].uint - prevLine[i].uint)
       for i in byteWidth..len-1:
-        output[i] = chr(scanLine[i].uint8 - paethPredictor(ord(scanLine[i - byteWidth]), ord(prevLine[i]), ord(prevLine[i - byteWidth])).uint8)
+        output[i] = chr(scanLine[i].uint - paethPredictor(ord(scanLine[i - byteWidth]), ord(prevLine[i]), ord(prevLine[i - byteWidth])).uint)
     else:
       for i in 0..byteWidth-1: output[i] = scanLine[i]
       #paethPredictor(scanLine[i - byteWidth], 0, 0) is always scanLine[i - byteWidth]
       for i in byteWidth..len-1:
-        output[i] = chr(scanLine[i].uint8 - scanLine[i - byteWidth].uint8)
+        output[i] = chr(scanLine[i].uint - scanLine[i - byteWidth].uint)
   else:
     raise PNGError("unsupported fitler type")
 
@@ -2947,10 +2946,10 @@ proc savePNG*(fileName, input: string, colorType: PNGcolorType, bitDepth, w, h: 
   except:
     debugEcho getCurrentExceptionMsg()
     result = false
-    
+
 proc savePNG32*(fileName, input: string, w, h: int): bool =
   result = savePNG(fileName, input, LCT_RGBA, 8, w, h)
-  
+
 proc savePNG24*(fileName, input: string, w, h: int): bool =
   result = savePNG(fileName, input, LCT_RGB, 8, w, h)
 
