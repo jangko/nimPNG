@@ -2412,7 +2412,7 @@ proc filterScanLine(output: var cstring, scanLine, prevLine: cstring, len, byteW
       for i in byteWidth..len-1:
         output[i] = chr(scanLine[i].uint - scanLine[i - byteWidth].uint)
   else:
-    raise PNGError("unsupported fitler type")
+    raise PNGError("unsupported filter type")
 
 proc filterZero(output: var cstring, input: cstring, w, h, bpp: int) =
   #the width of a scanline in bytes, not including the filter type

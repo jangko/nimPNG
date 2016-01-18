@@ -45,3 +45,4 @@ Temporary Items
 *.exe
 nimcache
 bug
+tester/temp.png
