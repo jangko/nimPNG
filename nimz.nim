@@ -1221,8 +1221,8 @@ proc nzDeflateInit*(input: string): nzStream =
 
 proc nzInflateInit*(input: string): nzStream =
   var nz = nzInit()
-  nz.data = ""
-  nz.bits.data = input
+  nz.data = newStringOfCap(1024 * 1024 * 5) # Allocate 5MB in advance
+  shallowCopy(nz.bits.data, input)
   nz.bits.bitpointer = 0
   nz.bits.databitlen = input.len * 8
   nz.mode = nzsInflate
