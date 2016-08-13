@@ -710,11 +710,11 @@ proc addBitToStream(s: var BitStream, bit: int) =
 
 proc addBitsToStream(s: var BitStream, value: int, nbits: int) =
   for i in 0..nbits-1:
-    s.addBitToStream ((value shr i) and 1)
+    s.addBitToStream((value shr i) and 1)
 
 proc addBitsToStreamReversed(s: var BitStream, value: int, nbits: int) =
   for i in 0..nbits-1:
-    s.addBitToStream ((value shr (nbits - 1 - i)) and 1)
+    s.addBitToStream((value shr (nbits - 1 - i)) and 1)
 
 proc HuffmanTree_getCode(tree: HuffmanTree, index: int): int =
   result = tree.tree1d[index]

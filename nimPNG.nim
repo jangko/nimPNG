@@ -1,6 +1,6 @@
 # Portable Network Graphics Encoder and Decoder written in Nim
 #
-# Copyright (c) 2015 Andri Lim
+# Copyright (c) 2015-2016 Andri Lim
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -211,7 +211,7 @@ proc signatureMaker(): string {. compiletime .} =
   for c in signatureBytes: result.add chr(c)
 
 proc makeChunkType*(val: string): PNGChunkType =
-  assert (val.len == 4)
+  assert(val.len == 4)
   result = PNGChunkType((ord(val[0]) shl 24) or (ord(val[1]) shl 16) or (ord(val[2]) shl 8) or ord(val[3]))
 
 proc `$`*(tag: PNGChunkType): string =
@@ -1124,7 +1124,7 @@ proc getChunkNames*(png: PNG): string =
   result = ""
   var i = 0
   for c in png.chunks:
-    result.add ($c.chunkType)
+    result.add($c.chunkType)
     if i < png.chunks.high: result.add ' '
     inc i
 
