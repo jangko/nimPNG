@@ -72,7 +72,7 @@ proc convert(dir: string) =
     let path = splitFile(fileName)
     if path.ext.len() == 0: continue
 
-    let ext = toLower(path.ext)
+    let ext = toLowerAscii(path.ext)
     if ext != ".png": continue
     if path.name[0] == 'x': continue
     
