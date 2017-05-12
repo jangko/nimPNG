@@ -1,4 +1,4 @@
-#nimPNG
+# nimPNG
 Portable Network Graphics Encoder and Decoder written in Nim store lossless image with good compression
 
 all PNG standard color mode are supported:
@@ -42,10 +42,10 @@ Supported color conversions:
 - removing alpha channel
 - higher to smaller bitdepth, and vice versa
 
-###Planned Feature(s):
+### Planned Feature(s):
 - streaming for progressive loading
 
-##Basic Usage
+## Basic Usage
 ```nimrod
 import nimPNG
 
