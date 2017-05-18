@@ -131,6 +131,7 @@ type
     bits: BitStream
     data: string
     mode: nzStreamMode
+    ignoreAdler32*: bool
 
 proc newNZError(msg: string): NZError =
   new(result)
@@ -1209,7 +1210,8 @@ proc nzInit(): nzStream =
     windowsize: DEFAULT_WINDOWSIZE,
     minmatch: 3,
     nicematch: 128,
-    lazymatching: true)
+    lazymatching: true,
+    ignoreAdler32: false)
 
 proc nzDeflateInit*(input: string): nzStream =
   var nz = nzInit()
@@ -1322,8 +1324,10 @@ proc zlib_decompress*(nz: nzStream): string =
   nz.bits.data.setLen(insize-4)
 
   nz.nzInflate
-  let adler32 = nzAdler32(1, nz.data)
-  if checksum != adler32:
-    raise newNZError("adler checksum not correct, data must be corrupted")
+
+  if not nz.ignoreAdler32:
+    let adler32 = nzAdler32(1, nz.data)
+    if checksum != adler32:
+      raise newNZError("adler checksum not correct, data must be corrupted")
 
   result = nz.nzGetResult

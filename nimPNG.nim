@@ -30,12 +30,12 @@ import streams, endians, tables, hashes, math, nimz
 import private.buffer
 
 const
-  NIM_PNG_VERSION = "0.1.7"
+  NIM_PNG_VERSION = "0.1.8"
 
 type
   PNGChunkType = distinct int32
 
-  PNGcolorType* = enum
+  PNGColorType* = enum
     LCT_GREY = 0,       # greyscale: 1,2,4,8,16 bit
     LCT_RGB = 2,        # RGB: 8,16 bit
     LCT_PALETTE = 3,    # palette: 1,2,4,8 bit
@@ -60,6 +60,7 @@ type
     readTextChunks*: bool
     rememberUnknownChunks*: bool
     ignoreCRC*: bool
+    ignoreAdler32*: bool
 
   PNGInterlace* = enum
     IM_NONE = 0, IM_INTERLACED = 1
@@ -195,15 +196,6 @@ type
     data*: string
 
   DataBuf = Buffer[string]
-
-proc makePNGDecoder*(): PNGDecoder =
-  var s: PNGDecoder
-  new(s)
-  s.colorConvert = true
-  s.readTextChunks = false
-  s.rememberUnknownChunks = false
-  s.ignoreCRC = false
-  result = s
 
 proc signatureMaker(): string {. compiletime .} =
   const signatureBytes = [137, 80, 78, 71, 13, 10, 26, 10]
@@ -466,6 +458,7 @@ method validateChunk(chunk: PNGData, png: PNG): bool =
 
 method parseChunk(chunk: PNGData, png: PNG): bool =
   var nz = nzInflateInit(chunk.data)
+  nz.ignoreAdler32 = PNGDecoder(png.settings).ignoreAdler32
   chunk.idat = zlib_decompress(nz)
   result = true
 
@@ -584,6 +577,7 @@ method parseChunk(chunk: PNGZtxt, png: PNG): bool =
   if compMethod != 0: raise PNGError("unsupported comp method")
 
   var nz = nzInflateInit(chunk.data.substr(len + 2))
+  nz.ignoreAdler32 = PNGDecoder(png.settings).ignoreAdler32
   chunk.text = zlib_decompress(nz)
 
   result = true
@@ -626,6 +620,7 @@ method parseChunk(chunk: PNGItxt, png: PNG): bool =
   let textBegin = i + len + 1
   if compressed:
     var nz = nzInflateInit(chunk.data.substr(textBegin))
+    nz.ignoreAdler32 = PNGDecoder(png.settings).ignoreAdler32
     chunk.text = zlib_decompress(nz)
   else:
     chunk.text = chunk.data.substr(textBegin)
@@ -668,6 +663,7 @@ method parseChunk(chunk: PNGICCProfile, png: PNG): bool =
   if compMethod != 0: raise PNGError("unsupported comp method")
 
   var nz = nzInflateInit(chunk.data.substr(len + 2))
+  nz.ignoreAdler32 = PNGDecoder(png.settings).ignoreAdler32
   chunk.profile = zlib_decompress(nz)
   result = true
 
@@ -773,6 +769,16 @@ proc createChunk(png: PNG, chunkType: PNGChunkType, data: string, crc: uint32): 
 
   if result != nil:
     result.initChunk(chunkType, data, crc)
+    
+proc makePNGDecoder*(): PNGDecoder =
+  var s: PNGDecoder
+  new(s)
+  s.colorConvert = true
+  s.readTextChunks = false
+  s.rememberUnknownChunks = false
+  s.ignoreCRC = false
+  s.ignoreAdler32 = false
+  result = s
 
 proc parsePNG(s: Stream, settings: PNGDecoder): PNG =
   var png: PNG
@@ -1707,10 +1713,23 @@ proc getConverterRGBA(mode: PNGColorMode): convertRGBA =
 proc convert*(output: var DataBuf, input: DataBuf, modeOut, modeIn: PNGColorMode, numPixels: int) =
   var tree: ColorTree8
   if modeOut.colorType == LCT_PALETTE:
-    let palSize = min(1 shl modeOut.bitDepth, modeOut.paletteSize)
-    tree = initTable[RGBA8, int]()
+    var
+      paletteSize = modeOut.paletteSize
+      palette:  type(modeOut.palette)
+      palSize = 1 shl modeOut.bitDepth
+
+    shallowCopy(palette, modeOut.palette)
+    # if the user specified output palette but did not give the values, assume
+    # they want the values of the input color type (assuming that one is palette).
+    # Note that we never create a new palette ourselves.
+    if paletteSize == 0:
+      paletteSize = modeIn.paletteSize
+      shallowCopy(palette, modeIn.palette)
+
+    if paletteSize < palSize: palSize = paletteSize
+    tree = initTable[RGBA8, int](nextPowerOfTwo(paletteSize))
     for i in 0..palSize-1:
-      tree[modeOut.palette[i]] = i
+      tree[palette[i]] = i
 
   if(modeIn.bitDepth == 16) and (modeOut.bitDepth == 16):
     let cvt = getColorRGBA16(modeIn)
@@ -1750,7 +1769,7 @@ proc convert*(png: PNG, colorType: PNGcolorType, bitDepth: int): PNGResult =
   result.width  = header.width
   result.height = header.height
   result.data   = newString(size)
-  var output = initBuffer(result.data)
+  var output    = initBuffer(result.data)
 
   if modeOut == modeIn:
     output.copyElements(input, size)

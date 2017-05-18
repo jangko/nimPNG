@@ -494,6 +494,41 @@ proc testPredefinedFilters() =
   for i in 0.. <h:
     assertEquals(chr(3), outFilters[i])
 
+# Tests combinations of various colors in different orders
+proc testFewColors() =
+  echo "codec test few colors"
+
+  var image = new(Image)
+  image.width = 20
+  image.height = 20
+  image.colorType = LCT_RGBA
+  image.bitDepth = 8
+  image.data = newString(image.width * image.height * 4)
+
+  var colors = newSeq[char]()
+
+  colors.add(0.chr);   colors.add(0.chr);   colors.add(0.chr);   colors.add(255.chr) # black
+  colors.add(255.chr); colors.add(255.chr); colors.add(255.chr); colors.add(255.chr) # white
+  colors.add(128.chr); colors.add(128.chr); colors.add(128.chr); colors.add(255.chr) # grey
+  colors.add(0.chr);   colors.add(0.chr);   colors.add(255.chr); colors.add(255.chr) # blue
+  colors.add(255.chr); colors.add(255.chr); colors.add(255.chr); colors.add(1.chr)   # transparent white
+  colors.add(255.chr); colors.add(255.chr); colors.add(255.chr); colors.add(1.chr)   # translucent white
+
+  let len = colors.len
+
+  for u in countup(0, len-1, 4):
+    for v in countup(0, len-1, 4):
+      for w in countup(0, len-1, 4):
+        for z in countup(0, len-1, 4):
+          for c in 0.. <4:
+            for y in 0.. <image.height:
+              for x in 0.. <image.width:
+                image.data[y * image.width * 4 + x * 4 + c] = if (x xor y) != 0: colors[u + c] else: colors[v + c]
+
+            image.data[c] = colors[w + c]
+            image.data[image.data.len - 4 + c] = colors[z + c]
+          doCodecTest(image)
+
 proc testColorKeyConvert() =
   echo "testColorKeyConvert"
   let
@@ -988,12 +1023,168 @@ proc testFilter() =
     echo "testFilter failed"
     quit()
 
+proc testPaletteToPaletteDecode() =
+  echo "testPaletteToPaletteDecode"
+  # It's a bit big for a 2x2 image... but this tests needs one with 256 palette entries in it.
+  let base64 = "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAMAAABFaP0WAAAAA3NCSVQICAjb4U/gAAADAFBMVEUA" &
+               "AAAAADMAAGYAAJkAAMwAAP8AMwAAMzMAM2YAM5kAM8wAM/8AZgAAZjMAZmYAZpkAZswAZv8AmQAA" &
+               "mTMAmWYAmZkAmcwAmf8AzAAAzDMAzGYAzJkAzMwAzP8A/wAA/zMA/2YA/5kA/8wA//8zAAAzADMz" &
+               "AGYzAJkzAMwzAP8zMwAzMzMzM2YzM5kzM8wzM/8zZgAzZjMzZmYzZpkzZswzZv8zmQAzmTMzmWYz" &
+               "mZkzmcwzmf8zzAAzzDMzzGYzzJkzzMwzzP8z/wAz/zMz/2Yz/5kz/8wz//9mAABmADNmAGZmAJlm" &
+               "AMxmAP9mMwBmMzNmM2ZmM5lmM8xmM/9mZgBmZjNmZmZmZplmZsxmZv9mmQBmmTNmmWZmmZlmmcxm" &
+               "mf9mzABmzDNmzGZmzJlmzMxmzP9m/wBm/zNm/2Zm/5lm/8xm//+ZAACZADOZAGaZAJmZAMyZAP+Z" &
+               "MwCZMzOZM2aZM5mZM8yZM/+ZZgCZZjOZZmaZZpmZZsyZZv+ZmQCZmTOZmWaZmZmZmcyZmf+ZzACZ" &
+               "zDOZzGaZzJmZzMyZzP+Z/wCZ/zOZ/2aZ/5mZ/8yZ///MAADMADPMAGbMAJnMAMzMAP/MMwDMMzPM" &
+               "M2bMM5nMM8zMM//MZgDMZjPMZmbMZpnMZszMZv/MmQDMmTPMmWbMmZnMmczMmf/MzADMzDPMzGbM" &
+               "zJnMzMzMzP/M/wDM/zPM/2bM/5nM/8zM////AAD/ADP/AGb/AJn/AMz/AP//MwD/MzP/M2b/M5n/" &
+               "M8z/M///ZgD/ZjP/Zmb/Zpn/Zsz/Zv//mQD/mTP/mWb/mZn/mcz/mf//zAD/zDP/zGb/zJn/zMz/" &
+               "zP///wD//zP//2b//5n//8z///8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" &
+               "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" &
+               "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABlenwdAAABAHRSTlP/////////////////////////" &
+               "////////////////////////////////////////////////////////////////////////////" &
+               "////////////////////////////////////////////////////////////////////////////" &
+               "////////////////////////////////////////////////////////////////////////////" &
+               "//////////////////////////////////8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" &
+               "AAAAAAAAAAAAG8mZagAAAAlwSFlzAAAOTQAADpwB3vacVwAAAA5JREFUCJlj2CLHwHodAATjAa+k" &
+               "lTE5AAAAAElFTkSuQmCC"
+
+  let png = fromBase64(base64)
+  var s = newStringStream(png)
+  let decoded = s.decodePNG(LCT_PALETTE, 8)
+
+  assertEquals(2, decoded.width)
+  assertEquals(2, decoded.height)
+  assertEquals(180, decoded.data[0].int)
+  assertEquals(30,  decoded.data[1].int)
+  assertEquals(5,   decoded.data[2].int)
+  assertEquals(215, decoded.data[3].int)
+
+# 2-bit palette
+proc testPaletteToPaletteDecode2() =
+  echo "testPaletteToPaletteDecode2"
+  let base64 = "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgAgMAAAAOFJJnAAAADFBMVEX/AAAA/wAAAP/////7AGD2AAAAE0lEQVR4AWMQhAKG3VCALDIqAgDl2WYBCQHY9gAAAABJRU5ErkJggg=="
+  let png = fromBase64(base64)
+  var s = newStringStream(png)
+  let decoded = s.decodePNG(LCT_PALETTE, 8)
+
+  assertEquals(32, decoded.width)
+  assertEquals(32, decoded.height)
+  assertEquals(0, decoded.data[0].int)
+  assertEquals(1, decoded.data[1].int)
+
+  # Now add a user-specified output palette, that differs from the input palette. That should give error 82.
+  #LodePNGState state;
+  #lodepng_state_init(&state);
+  #state.info_raw.colortype = LCT_PALETTE;
+  #state.info_raw.bitdepth = 8;
+  #lodepng_palette_add(&state.info_raw, 0, 0, 0, 255);
+  #lodepng_palette_add(&state.info_raw, 1, 1, 1, 255);
+  #lodepng_palette_add(&state.info_raw, 2, 2, 2, 255);
+  #lodepng_palette_add(&state.info_raw, 3, 3, 3, 255);
+  #unsigned char* image2 = 0;
+  #unsigned error2 = lodepng_decode(&image2, &width, &height, &state, &png[0], png.size());
+  #ASSERT_EQUALS(82, error2);
+  #lodepng_state_cleanup(&state);
+  #free(image2);
+
+proc flipBit(c: uint8, bitpos: int): uint8 =
+  result = c xor uint8(1 shl bitpos)
+
+# Test various broken inputs. Returned errors are not checked, what is tested is
+# that is doesn't crash, and, when run with valgrind, no memory warnings are
+# given.
+proc testFuzzing() =
+  echo "testFuzzing"
+  var
+    png = createComplexPNG()
+    broken = newString(png.len)
+    errors = initTable[string, int]()
+
+  copyMem(broken.cstring, png.cstring, png.len)
+  var settings = makePNGDecoder()
+  settings.ignoreCRC = true
+  settings.ignoreAdler32 = true
+
+  for i in 0.. <png.len:
+    broken[i] = cast[char](not png[i].int)
+
+    try:
+      var s = newStringStream(broken)
+      var res = s.decodePNG(settings)
+    except Exception as ex:
+      if errors.hasKey(ex.msg):
+        inc errors[ex.msg]
+      else:
+        errors[ex.msg] = 0
+
+    broken[i] = chr(0)
+
+    try:
+      var s = newStringStream(broken)
+      var res = s.decodePNG(settings)
+    except Exception as ex:
+      if errors.hasKey(ex.msg):
+        inc errors[ex.msg]
+      else:
+        errors[ex.msg] = 0
+
+    for j in 0.. <8:
+      broken[i] = chr(flipBit(png[i].uint8, j))
+      try:
+        var s = newStringStream(broken)
+        var res = s.decodePNG(settings)
+      except Exception as ex:
+        if errors.hasKey(ex.msg):
+          inc errors[ex.msg]
+        else:
+          errors[ex.msg] = 0
+
+    broken[i] = chr(255)
+    try:
+      var s = newStringStream(broken)
+      var res = s.decodePNG(settings)
+    except Exception as ex:
+      if errors.hasKey(ex.msg):
+        inc errors[ex.msg]
+      else:
+        errors[ex.msg] = 0
+    GC_fullcollect()
+    echo GC_getStatistics()
+    broken[i] = png[i] #fix it again for the next test
+
+  echo "testFuzzing shrinking"
+  copyMem(broken.cstring, png.cstring, png.len)
+  while broken.len > 0:
+    broken.setLen(broken.len - 1)
+    try:
+      var s = newStringStream(broken)
+      var res = s.decodePNG(settings)
+    except Exception as ex:
+      if errors.hasKey(ex.msg):
+        inc errors[ex.msg]
+      else:
+        errors[ex.msg] = 0
+
+  echo GC_getStatistics()
+  #For fun, print the number of each error
+  echo "Fuzzing error code counts: "
+  for key, val in pairs(errors):
+    echo key, " : ", val
+
+
 proc doMain() =
+  # PNG
   testPNGCodec()
   testPngSuiteTiny()
   testPaletteFilterTypesZero()
   testComplexPNG()
   testPredefinedFilters()
+  testPaletteToPaletteDecode()
+  testPaletteToPaletteDecode2()
+  #testFuzzing() OOM
+
+  # COLOR
+  testFewColors()
   testColorKeyConvert()
   testColorConvert()
   testColorConvert2()
