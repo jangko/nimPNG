@@ -1014,8 +1014,8 @@ proc testAutoColorModels() =
 
 proc testFilter() =
   echo "test Filter"
-  let input = "tester" & DirSep & "tfilter.png"
-  let temp = "tester" & DirSep & "temp.png"
+  let input = "tfilter.png"
+  let temp = "temp.png"
   let png = loadPNG32(input)
   discard savePNG32(temp, png.data, png.width, png.height)
   let png2 = loadPNG32(temp)

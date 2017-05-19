@@ -85,4 +85,4 @@ proc convert(dir: string) =
       let data2 = readFile(bmpName)
       assert data1 == data2
 
-convert("suite")
+convert(".." & DirSep & "suite")

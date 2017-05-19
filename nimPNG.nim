@@ -25,9 +25,9 @@
 # part of nimPDF sister projects
 #-------------------------------------
 
-import streams, endians, tables, hashes, math, nimz
+import streams, endians, tables, hashes, math
 
-import private.buffer
+import private.buffer, private.nimz
 
 const
   NIM_PNG_VERSION = "0.1.8"
@@ -769,7 +769,7 @@ proc createChunk(png: PNG, chunkType: PNGChunkType, data: string, crc: uint32): 
 
   if result != nil:
     result.initChunk(chunkType, data, crc)
-    
+
 proc makePNGDecoder*(): PNGDecoder =
   var s: PNGDecoder
   new(s)
