@@ -2001,7 +2001,7 @@ proc writeInt32BE(s: Stream, value: int) =
   bigEndian32(addr(tmp), addr(val))
   s.write(tmp)
 
-method writeChunk(chunk: PNGChunk, png: PNG): bool {.base.} = true
+method writeChunk(chunk: PNGChunk, png: PNG): bool {.base, gcsafe.} = true
 
 method writeChunk(chunk: PNGHeader, png: PNG): bool =
   #estimate 13 bytes
