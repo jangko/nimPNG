@@ -363,8 +363,8 @@ proc bitDepthAllowed(colorType: PNGcolorType, bitDepth: int): bool =
   of LCT_PALETTE: result = bitDepth in {1, 2, 4, 8}
   else: result = bitDepth in {8, 16}
 
-method validateChunk(chunk: PNGChunk, png: PNG): bool {.base.} = true
-method parseChunk(chunk: PNGChunk, png: PNG): bool {.base.} = true
+method validateChunk(chunk: PNGChunk, png: PNG): bool {.base, gcsafe.} = true
+method parseChunk(chunk: PNGChunk, png: PNG): bool {.base, gcsafe.} = true
 
 method validateChunk(header: PNGHeader, png: PNG): bool =
   if header.width < 1 or header.width > 0x7FFFFFFF:
@@ -2001,7 +2001,7 @@ proc writeInt32BE(s: Stream, value: int) =
   bigEndian32(addr(tmp), addr(val))
   s.write(tmp)
 
-method writeChunk(chunk: PNGChunk, png: PNG): bool {.base.} = true
+method writeChunk(chunk: PNGChunk, png: PNG): bool {.base, gcsafe.} = true
 
 method writeChunk(chunk: PNGHeader, png: PNG): bool =
   #estimate 13 bytes
