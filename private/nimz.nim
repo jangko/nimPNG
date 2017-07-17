@@ -410,7 +410,7 @@ proc readInt16(s: var BitStream): int =
   #go to first boundary of byte
   while (s.bitpointer and 0x7) != 0: inc s.bitpointer
   var p = s.bitpointer div 8 #byte position
-  if p + 2 >= s.data.len: raise newNZError("bit pointer will jump past memory")
+  if p + 2 > s.data.len: raise newNZError("bit pointer will jump past memory")
   result = ord(s.data[p]) + 256 * ord(s.data[p + 1])
   inc(s.bitpointer, 16)
 
