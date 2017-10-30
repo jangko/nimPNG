@@ -226,8 +226,8 @@ proc crc32(crc: uint32, buf: string): uint32 =
 
   var crcu32 = not crc
   for b in buf:
-    crcu32 = (crcu32 shr 4) xor kcrc32[(crcu32 and 0xF) xor (ord(b) and 0xF)]
-    crcu32 = (crcu32 shr 4) xor kcrc32[(crcu32 and 0xF) xor (ord(b) shr 4)]
+    crcu32 = (crcu32 shr 4) xor kcrc32[(crcu32 and 0xF) xor (uint32(b) and 0xF'u32)]
+    crcu32 = (crcu32 shr 4) xor kcrc32[(crcu32 and 0xF) xor (uint32(b) shr 4'u32)]
 
   result = not crcu32
 
@@ -1493,36 +1493,36 @@ proc RGBA8FromRGBA16(p: var RGBA8, input: DataBuf, px: int, mode: PNGColorMode) 
 
 proc RGBA16FromGrey(p: var RGBA16, input: DataBuf, px: int, mode: PNGColorMode) =
   let i = px * 2
-  let val = 256 * ord(input[i]) + ord(input[i + 1])
+  let val = 256'u16 * ord(input[i]) + ord(input[i + 1])
   p.r = val
   p.g = val
   p.b = val
-  if mode.keyDefined and (val == mode.keyR): p.a = 0
+  if mode.keyDefined and (val.int == mode.keyR): p.a = 0
   else: p.a = 65535
 
 proc RGBA16FromRGB(p: var RGBA16, input: DataBuf, px: int, mode: PNGColorMode) =
   let i = px * 6
-  p.r = 256 * ord(input[i]) + ord(input[i+1])
-  p.g = 256 * ord(input[i+2]) + ord(input[i+3])
-  p.b = 256 * ord(input[i+4]) + ord(input[i+5])
+  p.r = 256'u16 * ord(input[i]) + ord(input[i+1])
+  p.g = 256'u16 * ord(input[i+2]) + ord(input[i+3])
+  p.b = 256'u16 * ord(input[i+4]) + ord(input[i+5])
   if mode.keyDefined and (int(p.r) == mode.keyR) and
     (int(p.g) == mode.keyG) and (int(p.b) == mode.keyB): p.a = 0
   else: p.a = 65535
 
 proc RGBA16FromGreyAlpha(p: var RGBA16, input: DataBuf, px: int, mode: PNGColorMode) =
   let i = px * 4
-  let val = 256 * ord(input[i]) + ord(input[i + 1])
+  let val = 256'u16 * ord(input[i]) + ord(input[i + 1])
   p.r = val
   p.g = val
   p.b = val
-  p.a = 256 * ord(input[i + 2]) + ord(input[i + 3])
+  p.a = 256'u16 * ord(input[i + 2]) + ord(input[i + 3])
 
 proc RGBA16FromRGBA(p: var RGBA16, input: DataBuf, px: int, mode: PNGColorMode) =
   let i = px * 8
-  p.r = 256 * ord(input[i]) + ord(input[i+1])
-  p.g = 256 * ord(input[i+2]) + ord(input[i+3])
-  p.b = 256 * ord(input[i+4]) + ord(input[i+5])
-  p.a = 256 * ord(input[i+6]) + ord(input[i+7])
+  p.r = 256'u16 * ord(input[i]) + ord(input[i+1])
+  p.g = 256'u16 * ord(input[i+2]) + ord(input[i+3])
+  p.b = 256'u16 * ord(input[i+4]) + ord(input[i+5])
+  p.a = 256'u16 * ord(input[i+6]) + ord(input[i+7])
 
 proc RGBA8ToGrey8(p: RGBA8, output: var DataBuf, px: int, mode: PNGColorMode, ct: ColorTree8) =
   output[px] = p.r
