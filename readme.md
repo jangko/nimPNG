@@ -1,6 +1,8 @@
 # nimPNG
 Portable Network Graphics Encoder and Decoder written in Nim store lossless image with good compression
 
+[![Build Status][badge-nimpng-travisci]][nimpng-travisci]
+
 all PNG standard color mode are supported:
 
   -  LCT_GREY = 0,       # greyscale: 1,2,4,8,16 bit
@@ -77,7 +79,7 @@ to create PNG:
 
 special notes:
 
-* Use **loadPNG** or **savePNG** if you need specific input/output format by supplying supported **colorType** and **bitDepth** information. 
+* Use **loadPNG** or **savePNG** if you need specific input/output format by supplying supported **colorType** and **bitDepth** information.
 * Use **encodePNG** or **decodePNG** to do *in-memory* encoding/decoding by supplying desired colorType and bitDepth information
 
 pixels are stored as raw bytes using Nim's string as container:
@@ -88,3 +90,8 @@ pixels are stored as raw bytes using Nim's string as container:
 | r1,g1,b1,r2,g2,b2,...,rn,gn,bn | RGB 8 bit        |
 | grey1,grey2,grey3, ..., greyn  | GREY 8 bit       |
 | grey1,a1,grey2,a2,...,greyn,an | GREY ALPHA 8 bit |
+
+
+[nimpng-travisci]: https://travis-ci.org/jangko/nimPNG
+[badge-nimpng-travisci]: https://travis-ci.org/jangko/nimPNG.svg?branch=master
+
