@@ -38,7 +38,7 @@ proc generateTestImage(width, height: int, colorType = LCT_RGBA, bitDepth = 8): 
   result.data = newString(size)
 
   var value = 128
-  for i in 0.. <size:
+  for i in 0..<size:
     result.data[i] = chr(value mod 255)
     value.inc
 
@@ -53,7 +53,7 @@ proc assertPixels(image: Image, decoded: string, message: string) =
       let padding = 8 - (numbits - 8 * (numbits div 8))
       if padding != 8:
         #set all padding bits of both to 0
-        for j in 0.. <padding:
+        for j in 0..<padding:
           byte_expected = (byte_expected and (not (1 shl j))) mod 256
           byte_actual = (byte_actual and (not (1 shl j))) mod 256
 
@@ -306,7 +306,7 @@ proc doPngSuiteEqualTest(b64a, b64b: string) =
   assertEquals(decoded1.width, decoded2.width)
 
   let size = decoded1.height * decoded1.width * 4
-  for i in 0.. <size:
+  for i in 0..<size:
     if decoded1.data[i] != decoded2.data[i]:
       echo "x: ", ((i div 4) mod decoded1.width), " y: ", ((i div 4) mod decoded1.width), " c: ", i mod 4
       assertEquals(decoded1.data[i], decoded2.data[i])
@@ -491,7 +491,7 @@ proc testPredefinedFilters() =
   var outFilters = png.getFilterTypes()
 
   assertEquals(h, outFilters.len)
-  for i in 0.. <h:
+  for i in 0..<h:
     assertEquals(chr(3), outFilters[i])
 
 # Tests combinations of various colors in different orders
@@ -520,9 +520,9 @@ proc testFewColors() =
     for v in countup(0, len-1, 4):
       for w in countup(0, len-1, 4):
         for z in countup(0, len-1, 4):
-          for c in 0.. <4:
-            for y in 0.. <image.height:
-              for x in 0.. <image.width:
+          for c in 0..<4:
+            for y in 0..<image.height:
+              for x in 0..<image.width:
                 image.data[y * image.width * 4 + x * 4 + c] = if (x xor y) != 0: colors[u + c] else: colors[v + c]
 
             image.data[c] = colors[w + c]
@@ -1105,12 +1105,12 @@ proc testFuzzing() =
   settings.ignoreCRC = true
   settings.ignoreAdler32 = true
 
-  for i in 0.. <png.len:
+  for i in 0..<png.len:
     broken[i] = cast[char](not png[i].int)
 
     try:
       var s = newStringStream(broken)
-      var res = s.decodePNG(settings)
+      discard s.decodePNG(settings)
     except Exception as ex:
       if errors.hasKey(ex.msg):
         inc errors[ex.msg]
@@ -1121,18 +1121,18 @@ proc testFuzzing() =
 
     try:
       var s = newStringStream(broken)
-      var res = s.decodePNG(settings)
+      discard s.decodePNG(settings)
     except Exception as ex:
       if errors.hasKey(ex.msg):
         inc errors[ex.msg]
       else:
         errors[ex.msg] = 0
 
-    for j in 0.. <8:
+    for j in 0..<8:
       broken[i] = chr(flipBit(png[i].uint8, j))
       try:
         var s = newStringStream(broken)
-        var res = s.decodePNG(settings)
+        discard s.decodePNG(settings)
       except Exception as ex:
         if errors.hasKey(ex.msg):
           inc errors[ex.msg]
@@ -1142,7 +1142,7 @@ proc testFuzzing() =
     broken[i] = chr(255)
     try:
       var s = newStringStream(broken)
-      var res = s.decodePNG(settings)
+      discard s.decodePNG(settings)
     except Exception as ex:
       if errors.hasKey(ex.msg):
         inc errors[ex.msg]
@@ -1158,7 +1158,7 @@ proc testFuzzing() =
     broken.setLen(broken.len - 1)
     try:
       var s = newStringStream(broken)
-      var res = s.decodePNG(settings)
+      discard s.decodePNG(settings)
     except Exception as ex:
       if errors.hasKey(ex.msg):
         inc errors[ex.msg]
