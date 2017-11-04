@@ -30,7 +30,7 @@ import streams, endians, tables, hashes, math
 import private.buffer, private.nimz
 
 const
-  NIM_PNG_VERSION = "0.1.8"
+  NIM_PNG_VERSION = "0.1.9"
 
 type
   PNGChunkType = distinct int32
