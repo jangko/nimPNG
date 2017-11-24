@@ -2132,6 +2132,9 @@ type
 
     unknown*: seq[PNGUnknown]
 
+    # APNG number of plays, 0 = infinite
+    numPlays*: int
+
   PNGColorProfile = ref object
     colored: bool #not greyscale
     key: bool #if true, image is not opaque. Only if true and alpha is false, color key is possible.
@@ -2413,9 +2416,30 @@ method writeChunk(chunk: PNGICCProfile, png: PNG): bool =
   chunk.writeString zlib_compress(nz)
   result = true
 
-#method writeChunk(chunk: PNGICCProfile, png: PNG): bool =
-#method writeChunk(chunk: PNGICCProfile, png: PNG): bool =
-#method writeChunk(chunk: PNGICCProfile, png: PNG): bool =
+method writeChunk(chunk: APNGAnimationControl, png: PNG): bool =
+  # estimate 8 bytes
+  chunk.writeInt32(chunk.numFrames)
+  chunk.writeInt32(chunk.numPlays)
+  result = true
+
+method writeChunk(chunk: APNGFrameControl, png: PNG): bool =
+  # estimate 5*4 + 2*2 + 2 = 26 bytes
+  chunk.writeInt32(chunk.sequenceNumber)
+  chunk.writeInt32(chunk.width)
+  chunk.writeInt32(chunk.height)
+  chunk.writeInt32(chunk.xOffset)
+  chunk.writeInt32(chunk.yOffset)
+  chunk.writeInt16(chunk.delayNum)
+  chunk.writeInt16(chunk.delayDen)
+  chunk.writeByte(ord(chunk.disposeOp))
+  chunk.writeByte(ord(chunk.blendOp))
+  result = true
+
+method writeChunk(chunk: APNGFrameData, png: PNG): bool =
+  chunk.writeInt32(chunk.sequenceNumber)
+  var nz = nzDeflateInit(png.apngPixels[chunk.frameDataPos])
+  chunk.writeString zlib_compress(nz)
+  result = true
 
 proc isGreyscaleType(mode: PNGColorMode): bool =
   result = mode.colorType in {LCT_GREY, LCT_GREY_ALPHA}
@@ -3063,6 +3087,22 @@ proc addChunkiTXt(png: PNG, txt: PNGIText) =
 
 proc addChunkIEND(png: PNG) =
   var chunk = make[PNGEnd](IEND, 0)
+  png.chunks.add chunk
+
+proc addChunkacTL(png: PNG, numFrames, numPlays: int) =
+  var chunk = make[APNGAnimationControl](acTL, 8)
+  chunk.numFrames = numFrames
+  chunk.numPlays = numPlays
+  png.chunks.add chunk
+
+proc addChunkfcTL(png: PNG, chunk: APNGFrameControl) =
+  chunk.chunkType = fcTL
+  if chunk.data.isNil:
+    chunk.data = newStringOfCap(26)
+  png.chunks.add chunk
+
+proc addChunkfdAT(png: PNG, sequenceNumber, frameDataPos: int) =
+  var chunk = make[APNGFrameData](fdAT, 0)
   png.chunks.add chunk
 
 proc encodePNG*(input: string, w, h: int, settings = PNGEncoder(nil)): PNG =
