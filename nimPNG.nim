@@ -26,7 +26,6 @@
 #-------------------------------------
 
 import streams, endians, tables, hashes, math
-
 import private.buffer, private.nimz
 
 const
@@ -2029,13 +2028,6 @@ proc decodePNG24*(input: string, settings = PNGDecoder(nil)): PNGResult =
   except:
     debugEcho getCurrentExceptionMsg()
     result = nil
-
-proc main() =
-  var png = loadPNG32("apng\\clock.png")
-  #var png2 = loadPNG32("apng\\firefox.png")
-  #var png3 = loadPNG32("tester\\sample.png")
-
-main()
 
 #Encoder/Decoder demarcation line-----------------------------
 
