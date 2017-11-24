@@ -3379,15 +3379,15 @@ proc encodeAPNG*(png: PNG): string =
 
 when not defined(js):
   proc saveAPNG*(png: PNG, fileName: string): bool =
-    #try:
+    try:
       png.encoderCore()
       var s = newFileStream(fileName, fmWrite)
       png.writeChunks s
       s.close()
       result = true
-    #except:
-      #debugEcho getCurrentExceptionMsg()
-      #result = false
+    except:
+      debugEcho getCurrentExceptionMsg()
+      result = false
 
 proc getFilterTypesInterlaced(png: PNG): seq[string] =
   var header = PNGHeader(png.getChunk(IHDR))
