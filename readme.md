@@ -81,7 +81,7 @@ to create PNG:
 special notes:
 
 * Use **loadPNG** or **savePNG** if you need specific input/output format by supplying supported **colorType** and **bitDepth** information.
-* Use **encodePNG** or **decodePNG** to do *in-memory* encoding/decoding by supplying desired colorType and bitDepth information
+* Use **encodePNG** or **decodePNG** to do *in-memory* encoding/decoding by supplying desired **colorType** and **bitDepth** information
 
 pixels are stored as raw bytes using Nim's string as container:
 

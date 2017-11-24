@@ -181,6 +181,8 @@ type
     blendOp*: APNG_BLEND_OP
 
   APNGFrameData = ref object of APNGFrameChunk
+    # during decoding frameDataPos points to chunk.data[pos]
+    # during encoding frameDataPos points to png.apngPixels[pos] and png.apngChunks[pos]
     frameDataPos: int
 
   PNGPass = object
@@ -214,9 +216,13 @@ type
     second*: int #range[0..60] #to allow for leap seconds
 
   PNG* = ref object
+    # during encoding, settings is PNGEncoder
+    # during decoding, settings is PNGDecoder
     settings*: PNGSettings
     chunks*: seq[PNGChunk]
     pixels*: string
+    # during encoding, apngChunks contains only fcTL chunks
+    # during decoding, apngChunks contains both fcTL and fdAT chunks
     apngChunks*: seq[APNGFrameChunk]
     firstFrameIsDefaultImage*: bool
     isAPNG*: bool
@@ -1912,90 +1918,108 @@ proc toString(chunk: APNGFrameData): string =
   result = newString(fdatLen)
   copyMem(result[0].addr, fdatAddr, fdatLen)
 
+type
+  APNG = ref object
+    png: PNG
+    result: PNGResult
+
+proc processingAPNG(apng: APNG, colorType: PNGcolorType, bitDepth: int) =
+  let header = PNGHeader(apng.png.getChunk(IHDR))
+  var
+    actl = APNGAnimationControl(apng.png.getChunk(acTL))
+    frameControl = newSeqOfCap[APNGFrameControl](actl.numFrames)
+    frameData = newSeqOfCap[string](actl.numFrames)
+    numFrames = 0
+    lastChunkType = PNGChunkType(0)
+    start = 0
+
+  if apng.png.firstFrameIsDefaultImage:
+    start = 1
+    # IDAT already processed, so we add a dummy here
+    frameData.add string(nil)
+
+  for x in apng.png.apngChunks:
+    if x.chunkType == fcTL:
+      frameControl.add APNGFrameControl(x)
+      inc numFrames
+      lastChunkType = fcTL
+    else:
+      let y = APNGFrameData(x)
+      if lastChunkType == fdAT:
+        frameData[^1].add y.toString()
+      else:
+        frameData.add y.toString()
+      lastChunkType = fdAT
+
+  if actl.numFrames == 0 or actl.numFrames != numFrames or actl.numFrames != frameData.len:
+    raise PNGError("animation numFrames error")
+
+  apng.png.apngPixels = newSeqOfCap[string](numFrames)
+
+  if apng.result != nil:
+    apng.result.frames = newSeqOfCap[APNGFrame](numFrames)
+
+  if apng.png.firstFrameIsDefaultImage:
+    let ctl = frameControl[0]
+    if ctl.width != header.width or ctl.height != header.height:
+      raise PNGError("animation control error: dimension")
+    if ctl.xOffset != 0 or ctl.xOffset != 0:
+      raise PNGError("animation control error: offset")
+
+    if apng.result != nil:
+      var frame = new(APNGFrame)
+      frame.ctl = ctl
+      frame.data = apng.result.data
+      apng.result.frames.add frame
+
+  for i in start..<numFrames:
+    let ctl = frameControl[i]
+    var nz = nzInflateInit(frameData[i])
+    nz.ignoreAdler32 = PNGDecoder(apng.png.settings).ignoreAdler32
+    let idat = zlib_decompress(nz)
+    apng.png.postProcessScanLines(ctl, idat)
+
+    if apng.result != nil:
+      if PNGDecoder(apng.png.settings).colorConvert:
+        apng.result.frames.add apng.png.convert(colorType, bitDepth, ctl, apng.png.apngPixels[^1])
+      else:
+        var frame = new(APNGFrame)
+        frame.ctl = ctl
+        frame.data = apng.png.apngPixels[^1]
+        apng.result.frames.add frame
+
 proc decodePNG*(s: Stream, colorType: PNGcolorType, bitDepth: int, settings = PNGDecoder(nil)): PNGResult =
   if not bitDepthAllowed(colorType, bitDepth):
     raise PNGError("colorType and bitDepth combination not allowed")
 
   var png = s.parsePNG(settings)
-  let header = PNGHeader(png.getChunk(IHDR))
-  # shadowing the settings
-  let settings = PNGDecoder(png.settings)
   png.postProcessScanLines()
 
-  if settings.colorConvert:
+  if PNGDecoder(png.settings).colorConvert:
     result = png.convert(colorType, bitDepth)
   else:
     new(result)
+    let header = PNGHeader(png.getChunk(IHDR))
     result.width  = header.width
     result.height = header.height
     result.data   = png.pixels
 
   if png.isAPNG:
-    var
-      actl = APNGAnimationControl(png.getChunk(acTL))
-      frameControl = newSeqOfCap[APNGFrameControl](actl.numFrames)
-      frameData = newSeqOfCap[string](actl.numFrames)
-      numFrames = 0
-      lastChunkType = PNGChunkType(0)
-      start = 0
-
-    if png.firstFrameIsDefaultImage:
-      start = 1
-      # IDAT already processed, so we add a dummy here
-      frameData.add string(nil)
-
-    for x in png.apngChunks:
-      if x.chunkType == fcTL:
-        frameControl.add APNGFrameControl(x)
-        inc numFrames
-        lastChunkType = fcTL
-      else:
-        let y = APNGFrameData(x)
-        if lastChunkType == fdAT:
-          frameData[^1].add y.toString()
-        else:
-          frameData.add y.toString()
-        lastChunkType = fdAT
-
-    if actl.numFrames == 0 or actl.numFrames != numFrames or actl.numFrames != frameData.len:
-      raise PNGError("animation numFrames error")
-
-    png.apngPixels = newSeqOfCap[string](numFrames)
-    result.frames = newSeqOfCap[APNGFrame](numFrames)
-
-    if png.firstFrameIsDefaultImage:
-      let ctl = frameControl[0]
-      if ctl.width != header.width or ctl.height != header.height:
-        raise PNGError("animation control error: dimension")
-      if ctl.xOffset != 0 or ctl.xOffset != 0:
-        raise PNGError("animation control error: offset")
-      var frame = new(APNGFrame)
-      frame.ctl = ctl
-      frame.data = result.data
-      result.frames.add frame
-
-    for i in start..<numFrames:
-      let ctl = frameControl[i]
-      var nz = nzInflateInit(frameData[i])
-      nz.ignoreAdler32 = PNGDecoder(png.settings).ignoreAdler32
-      let idat = zlib_decompress(nz)
-      png.postProcessScanLines(ctl, idat)
-
-      if PNGDecoder(png.settings).colorConvert:
-        result.frames.add png.convert(colorType, bitDepth, ctl, png.apngPixels[^1])
-      else:
-        var frame = new(APNGFrame)
-        frame.ctl = ctl
-        frame.data = png.apngPixels[^1]
-        result.frames.add frame
+    var apng = APNG(png: png, result: result)
+    apng.processingAPNG(colorType, bitDepth)
 
 proc decodePNG*(s: Stream, settings = PNGDecoder(nil)): PNG =
   var png = s.parsePNG(settings)
   png.postProcessScanLines()
+
+  if png.isAPNG:
+    var apng = APNG(png: png, result: nil)
+    apng.processingAPNG(PNGColorType(0), 0)
+
   result = png
 
 when not defined(js):
-  proc loadPNG*(fileName: string, colorType: PNGcolorType, bitDepth: int, settings: PNGDecoder): PNGResult =
+  proc loadPNG*(fileName: string, colorType: PNGColorType, bitDepth: int, settings: PNGDecoder): PNGResult =
     try:
       var s = newFileStream(fileName, fmRead)
       if s == nil: return nil
@@ -2388,6 +2412,10 @@ method writeChunk(chunk: PNGICCProfile, png: PNG): bool =
   var nz = nzDeflateInit(chunk.profile)
   chunk.writeString zlib_compress(nz)
   result = true
+
+#method writeChunk(chunk: PNGICCProfile, png: PNG): bool =
+#method writeChunk(chunk: PNGICCProfile, png: PNG): bool =
+#method writeChunk(chunk: PNGICCProfile, png: PNG): bool =
 
 proc isGreyscaleType(mode: PNGColorMode): bool =
   result = mode.colorType in {LCT_GREY, LCT_GREY_ALPHA}
