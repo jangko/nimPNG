@@ -1,5 +1,6 @@
-# nimPNG
-Portable Network Graphics Encoder and Decoder written in Nim store lossless image with good compression
+# nimPNG (PNG + APNG)
+Portable Network Graphics Encoder and Decoder written in Nim store lossless image with good compression.
+Since version 0.2.0 also support Animated PNG!
 
 [![Build Status][badge-nimpng-travisci]][nimpng-travisci]
 
@@ -96,21 +97,32 @@ pixels are stored as raw bytes using Nim's string as container:
 
 Since version 0.2.0, nimPNG provides support for [Animated PNG](https://wiki.mozilla.org/APNG_Specification).
 
+Both decoder and encoder recognize/generate APNG chunks correctly: acTL, fcTL, fdAT.
+
+Decoded frames is provided as is, the dimension and coordinate offset might be different with default frame.
+No alpha blending or other blending method performed.
+It is up to the application to do proper in-memory rendering before displaying the animation.
+Don't ask how to do it, any decent graphics rendering library have their own set of API to do alpha blending and
+offset rendering. In the future nimPNG might be shipped with simple frame rendering utility for common cases.
+Right now nimPNG is just a PNG encoder/decoder.
+
 ### Decoding
 
 ```Nim
+#let png = loadPNG32("image.png")
+# or
 #let png = loadPNG("image.png", LCT_RGBA, 8)
 # or
 #let png = decodePNG32(raw_bytes)
 ```
 
 The usual loadPNG and decodePNG can decode both unanimated and animated PNG.
-png.width, png.height, png.data works as usual. If the decoded PNG is an APNG, png.data will contains default frame.
-Animation frames can be accessible via png.frames. If it is not an APNG, png.frames will be nil.
+`png.width`, `png.height`, `png.data` works as usual. If the decoded PNG is an APNG, `png.data` will contains default frame.
+Animation frames can be accessible via `png.frames`. If it is not an APNG, `png.frames` will be nil.
 
 ### Encoding
 
+Under construction
 
 [nimpng-travisci]: https://travis-ci.org/jangko/nimPNG
 [badge-nimpng-travisci]: https://travis-ci.org/jangko/nimPNG.svg?branch=master
-
