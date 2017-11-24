@@ -81,7 +81,7 @@ to create PNG:
 special notes:
 
 * Use **loadPNG** or **savePNG** if you need specific input/output format by supplying supported **colorType** and **bitDepth** information.
-* Use **encodePNG** or **decodePNG** to do *in-memory* encoding/decoding by supplying desired colorType and bitDepth information
+* Use **encodePNG** or **decodePNG** to do *in-memory* encoding/decoding by supplying desired **colorType** and **bitDepth** information
 
 pixels are stored as raw bytes using Nim's string as container:
 
@@ -95,7 +95,7 @@ pixels are stored as raw bytes using Nim's string as container:
 
 ## Animated PNG (APNG)
 
-Since version 0.2.0, nimPNG provides support for [Animated PNG](https://wiki.mozilla.org/APNG_Specification).
+Since version 0.2.0, nimPNG provides support for [Animated PNG](https://en.wikipedia.org/wiki/APNG).
 
 Both decoder and encoder recognize/generate APNG chunks correctly: acTL, fcTL, fdAT.
 
@@ -122,7 +122,36 @@ Animation frames can be accessible via `png.frames`. If it is not an APNG, `png.
 
 ### Encoding
 
-Under construction
+```Nim
+var png = prepareAPNG24()
+```
+
+* First step is to call prepareAPNG, prepareAPNG24, or prepareAPNG32. You also can specify how many times the animation
+will be played
+
+```Nim
+  png.addDefaultImage(framePixels, w, h, ctl)
+```
+
+* Second step is also mandatory, you should call addDefaultImage. ctl is optional, if you provide a ctl(Frame Control),
+the default image will be part of the animation. If ctl is nil, default image will not be part of animation.
+
+```Nim
+  png.addFrame(frames[i].data, ctl)
+```
+
+* Third step is calling addFrame one or more times. Here ctl is mandatory.
+
+```Nim
+  png.saveAPNG("rainbow.png")
+  # or
+  var str = png.encodeAPNG()
+```
+
+* Final step is to call saveAPNG if you want save it to file or call encodeAPNG if you want to get the result in a string container
+
+You can read the details of frame control from [spec](https://wiki.mozilla.org/APNG_Specification).
+You can also see an example in tester/test.nim -> generateAPNG
 
 [nimpng-travisci]: https://travis-ci.org/jangko/nimPNG
 [badge-nimpng-travisci]: https://travis-ci.org/jangko/nimPNG.svg?branch=master

@@ -51,9 +51,53 @@ proc convert(dir: string) =
     if png == nil: continue
     png.toBMP(bmpName)
 
+proc generateAPNG() =
+  const numFrames = 7
+  var frames: array[numFrames, PNGResult]
+
+  for i in 0..<numFrames:
+    frames[i] = loadPNG24(".." & DirSep & "apng" & DirSep & "raw" & DirSep & "frame" & $i & ".png")
+
+  var png = prepareAPNG24()
+
+  var ctl = new(APNGFrameControl)
+  ctl.width = frames[0].width
+  ctl.height = frames[0].height
+  ctl.xOffset = 0
+  ctl.yOffset = 0
+  # half second delay = delayNum/delayDen
+  ctl.delayNum = 1
+  ctl.delayDen = 2
+  ctl.disposeOp = APNG_DISPOSE_OP_NONE
+  ctl.blendOp = APNG_BLEND_OP_SOURCE
+
+  if not png.addDefaultImage(frames[0].data, frames[0].width, frames[0].height, ctl):
+    echo "failed to add default image"
+    quit(1)
+
+  for i in 1..<numFrames:
+    var ctl = new(APNGFrameControl)
+    ctl.width = frames[i].width
+    ctl.height = frames[i].height
+    ctl.xOffset = 0
+    ctl.yOffset = 0
+    ctl.delayNum = 1
+    ctl.delayDen = 2
+    ctl.disposeOp = APNG_DISPOSE_OP_NONE
+    ctl.blendOp = APNG_BLEND_OP_SOURCE
+
+    if not png.addFrame(frames[i].data, ctl):
+      echo "failed to add frames"
+      quit(1)
+
+  if not png.saveAPNG("rainbow.png"):
+    echo "failed to save rainbow.png"
+    quit(1)
+
 proc main() =
   let data = loadPNG32("sample.png")
   assert(not data.isNil)
   convert(".." & DirSep & "apng")
+  generateAPNG()
 
 main()
