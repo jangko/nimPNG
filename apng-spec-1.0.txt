@@ -1,0 +1,291 @@
+APNG 1.0
+
+Authors:
+* Stuart Parmenter <pavlov@pavlov.net>
+* Vladimir Vukicevic <vladimir@pobox.com>
+* Andrew Smith <asmith16@littlesvr.ca>
+
+= Overview =
+
+APNG is an extension of the [http://www.w3.org/TR/PNG/ PNG] format, adding support for animated images. It is intended to be a replacement for simple animated images that have traditionally used the [http://www.w3.org/Graphics/GIF/spec-gif89a.txt GIF] format, while adding support for 24-bit images and 8-bit transparency. APNG is a simpler alternative to MNG, providing a spec suitable for the most common usage of animated images on the Internet.
+
+APNG is backwards-compatible with PNG; any PNG decoder should be able to ignore the APNG-specific chunks and display a single image.
+
+== Terminology ==
+
+The "default image" is the image described by the standard `IDAT` chunks, and is the image that is displayed by decoders that do not support APNG.
+
+The "canvas" is the area on the output device on which the frames are to be displayed.  The contents of the canvas are not necessarily available to the decoder. As per the PNG Specification, if a `bKGD` chunk exists it may be used to fill the canvas if there is no preferable background.
+
+The "output buffer" is a pixel array with dimensions specified by the width and height parameters of the PNG `IHDR` chunk.  Conceptually, each frame is constructed in the output buffer before being composited onto the canvas.  The contents of the output buffer are available to the decoder.  The corners of the output buffer are mapped to the corners of the canvas.
+
+"Fully transparent black" means red, green, blue and alpha components are all set to zero.
+
+For purposes of chunk descriptions, an "unsigned int" shall be a 32-bit unsigned integer in network byte order limited to the range 0 to (2^31)-1; an "unsigned short" shall be a 16-bit unsigned integer in network byte order with the range 0 to (2^16)-1; a "byte" shall be an 8-bit unsigned integer with the range 0 to (2^8)-1.
+
+== Error Handling ==
+
+APNG is designed to allow incremental display of frames before the entire image has been read. This implies that some errors may not be detected until partway through the animation. It is strongly recommended that when any error is encountered decoders should discard all subsequent frames, stop the animation, and revert to displaying the default image. A decoder which detects an error before the animation has started should display the default image. An error message may be displayed to the user if appropriate.
+
+= Structure =
+
+An APNG stream is a normal PNG stream as defined in the [http://www.w3.org/TR/PNG/ PNG Specification], with three additional chunk types describing the animation and providing additional frame data. 
+
+To be recognized as an APNG, an `acTL` chunk must appear in the stream before any `IDAT` chunks. The `acTL` structure is described below.
+
+Conceptually, at the beginning of each play the output buffer must be completely initialized to a fully transparent black rectangle, with width and height dimensions from the `IHDR` chunk.
+
+The default image may be included as the first frame of the animation by the presence of a single `fcTL` chunk before `IDAT`. Otherwise, the default image is not part of the animation.
+
+Subsequent frames are encoded in `fdAT` chunks, which have the same structure as `IDAT` chunks, except preceded by a sequence number. Information for each frame about placement and rendering is stored in `fcTL` chunks.  The full layout of `fdAT` and `fcTL` chunks is described below.
+
+The boundaries of the entire animation are specified by the width and height parameters of the PNG `IHDR` chunk, regardless of whether the default image is part of the animation. The default image should be appropriately padded with fully transparent pixels if extra space will be needed for later frames.
+
+Each frame is identical for each play, therefore it is safe for applications to cache the frames.
+
+== Chunk Sequence Numbers ==
+
+The `fcTL` and `fdAT` chunks have a 4 byte sequence number. Both chunk types share the sequence. The purpose of this number is to detect (and optionally correct) sequence errors in an Animated PNG, since the PNG specification does not impose ordering restrictions on ancillary chunks.
+
+The first `fcTL` chunk must contain sequence number 0, and the sequence numbers in the remaining `fcTL` and `fdAT` chunks must be in order, with no gaps or duplicates.
+
+The tables below illustrates the use of sequence numbers for images with more than one frame and more than one `fdAT` chunk.
+
+If the default image is the first frame:
+
+     Sequence number    Chunk
+     (none)             `acTL`
+     0                  `fcTL` first frame
+     (none)             `IDAT` first frame / default image
+     1                  `fcTL` second frame
+     2                  first `fdAT` for second frame
+     3                  second `fdAT` for second frame
+     ....
+
+If the default image is not part of the animation:
+
+     Sequence number    Chunk
+     (none)             `acTL`
+     (none)             `IDAT` default image
+     0                  `fcTL` first frame
+     1                  first `fdAT` for first frame
+     2                  second `fdAT` for first frame
+     ....
+
+Decoders must treat out-of-order APNG chunks as an error. APNG-aware PNG editors should restore them to correct order using the sequence numbers.
+
+== `acTL`: The Animation Control Chunk ==
+
+The `acTL` chunk is an ancillary chunk as defined in the PNG Specification. It must appear before the first `IDAT` chunk within a valid PNG stream.
+
+The `acTL` chunk contains:
+
+     byte
+      0   num_frames     (unsigned int)    Number of frames
+      4   num_plays      (unsigned int)    Number of times to loop this APNG.  0 indicates infinite looping.
+
+`num_frames` indicates the total number of frames in the animation. This must  equal the number of `fcTL` chunks. 0 is not a valid value. 1 is a valid value for a single-frame APNG. If this value does not equal the actual number of frames it should be treated as an error.
+
+`num_plays` indicates the number of times that this animation should play; if it is 0, the animation should play indefinitely.  If nonzero, the animation should come to rest on the final frame at the end of the last play.
+
+== `fcTL`: The Frame Control Chunk ==
+
+The `fcTL` chunk is an ancillary chunk as defined in the PNG Specification. It must appear before the `IDAT` or `fdAT` chunks of the frame to which it applies, specifically:
+
+* For the default image, if a `fcTL` chunk is present it must appear before the first `IDAT` chunk. Position relative to the `acTL` chunk is not specified.
+* For the first frame excluding the default image (which may be either the first or second frame), the `fcTL` chunk must appear after all `IDAT` chunks and before the `fdAT` chunks for the frame.
+* For all subsequent frames, the `fcTL` chunk for frame N must appear after the `fdAT` chunks from frame N-1 and before the `fdAT` chunks for frame N.
+* Other ancillary chunks are allowed to appear among the APNG chunks, including between `fdAT` chunks.
+
+Exactly one `fcTL` chunk is required for each frame.
+
+Format:
+
+    byte
+     0    sequence_number       (unsigned int)   Sequence number of the animation chunk, starting from 0
+     4    width                 (unsigned int)   Width of the following frame
+     8    height                (unsigned int)   Height of the following frame
+    12    x_offset              (unsigned int)   X position at which to render the following frame
+    16    y_offset              (unsigned int)   Y position at which to render the following frame
+    20    delay_num             (unsigned short) Frame delay fraction numerator
+    22    delay_den             (unsigned short) Frame delay fraction denominator
+    24    dispose_op            (byte)           Type of frame area disposal to be done after rendering this frame
+    25    blend_op              (byte)           Type of frame area rendering for this frame 
+
+The frame must be rendered within the region defined by `x_offset`, `y_offset`, `width`, and `height`. The offsets must be non-negative, the dimensions must be positive, and the region may not fall outside of the default image.
+
+Constraints on frame regions:
+
+    `x_offset` >= 0
+    `y_offset` >= 0
+    `width`    > 0
+    `height`   > 0
+    `x_offset` + `width`  <= `IHDR` width
+    `y_offset` + `height` <= `IHDR` height
+
+The `delay_num` and `delay_den` parameters together specify a fraction indicating the time to display the current frame, in seconds.  If the denominator is 0, it is to be treated as if it were 100 (that is, `delay_num` then specifies 1/100ths of a second).  If the the value of the numerator is 0 the decoder should render the next frame as quickly as possible, though viewers may impose a reasonable lower bound.
+
+Frame timings should be independent of the time required for decoding and display of each frame, so that animations will run at the same rate regardless of the performance of the decoder implementation.
+
+`dispose_op` specifies how the output buffer should be changed at the end of the delay (before rendering the next frame).
+
+Valid values for `dispose_op` are:
+
+    value
+    0           APNG_DISPOSE_OP_NONE
+    1           APNG_DISPOSE_OP_BACKGROUND
+    2           APNG_DISPOSE_OP_PREVIOUS
+
+* APNG_DISPOSE_OP_NONE: no disposal is done on this frame before rendering the next; the contents of the output buffer are left as is.
+* APNG_DISPOSE_OP_BACKGROUND: the frame's region of the output buffer is to be cleared to fully transparent black before rendering the next frame.
+* APNG_DISPOSE_OP_PREVIOUS: the frame's region of the output buffer is to be reverted to the previous contents before rendering the next frame.
+
+If the first `fcTL` chunk uses a `dispose_op` of APNG_DISPOSE_OP_PREVIOUS it should be treated as APNG_DISPOSE_OP_BACKGROUND.
+
+`blend_op` specifies whether the frame is to be alpha blended into the current output buffer content, or whether it should completely replace its region in the output buffer.
+
+Valid values for `blend_op` are:
+
+    value
+    0       APNG_BLEND_OP_SOURCE
+    1       APNG_BLEND_OP_OVER
+
+If `blend_op` is APNG_BLEND_OP_SOURCE all color components of the frame, including alpha, overwrite the current contents of the frame's output buffer region. If `blend_op` is APNG_BLEND_OP_OVER the frame should be composited onto the output buffer based on its alpha, using a simple OVER operation as described in the "Alpha Channel Processing" section of the PNG specification [PNG-1.2]. Note that the second variation of the sample code is applicable.
+
+Note that for the first frame the two blend modes are functionally equivalent due to the clearing of the output buffer at the beginning of each play.
+
+The `fcTL` chunk corresponding to the default image, if it exists, has these restrictions:
+* The `x_offset` and `y_offset` fields must be 0.
+* The `width` and `height` fields must equal the corresponding fields from the `IHDR` chunk.
+
+As noted earlier, the output buffer must be completely initialized to fully transparent black at the beginning of each play. This is to ensure that each play of the animation will be identical. Decoders are free to avoid an explicit clear step as long as the result is guaranteed to be identical. For example, if the default image is included in the animation, and uses a `blend_op` of APNG_BLEND_OP_SOURCE, clearing is not necessary because the entire output buffer will be overwritten.
+
+Note, at the end of the fcTL chunk is a 32-bit CRC checksum. The checksum is calculated using the fcTL chunk and includes the 'fcTL' bytes.
+
+== `fdAT`: The Frame Data Chunk ==
+
+The `fdAT` chunk has the same purpose as an `IDAT` chunk. It has the same structure as an `IDAT` chunk, except preceded by a sequence number.
+
+At least one `fdAT` chunk is required for each frame. The compressed datastream is then the concatenation of the contents of the data fields of all the `fdAT` chunks within a frame. When decompressed, the datastream is the complete pixel data of a PNG image, including the filter byte at the beginning of each scanline, similar to the uncompressed data of all the `IDAT` chunks. It utilizes the same bit depth, color type, compression method, filter method, interlace method, and palette (if any) as the default image.
+
+Format:
+
+     byte
+     0    sequence_number       (unsigned int)   Sequence number of the animation chunk, starting from 0
+     4    frame_data            X bytes          Frame data for this frame
+
+Each frame inherits every property specified by any critical or ancillary chunks before the first `IDAT` in the file, except the width and height, which come from the `fcTL` chunk.
+
+If the PNG `pHYs` chunk is present, the APNG images and their `x_offset` and `y_offset` values must be scaled in the same way as the main image. Conceptually, such scaling occurs while mapping the output buffer onto the canvas.
+
+= MIME type =
+
+APNG can be identified using the <code>image/apng</code> MIME type.
+
+= Revisions to this Specification =
+
+== From 0.1 ==
+
+* Renamed chunks to `anIm` and `frAm` to comply with chunk naming conventions in  the PNG spec.
+
+* Added a more detailed explanation of APNG structure in Section 2.
+
+* Added information for png interaction with other chunks in section 3.2.
+
+* Changed `frAm` chunk offsets and delay into signed integers.
+
+== From 0.2 ==
+
+* Changed `frAm` chunk to `afRa` to avoid conflict with MNG `FRAM` chunk.
+
+* Changed format: instead of sequences of IHDR..IDAT..IEND, frames other than frame 0 are stored in `afRa` chunks.
+
+* Added `start_frame` to `anIm` to indicate which frame the animation should start on.
+
+* Removed `num_frames` from `anIm` chunk
+
+== From 0.3 ==
+
+* Added `aCTL`, `fdAT`, `fcTL` chunk descriptions as per the latest png-list discussion
+
+* Added section 4, "Interactions with other PNG chunks"; described global and local palettes and transparency
+
+* Changed `oFFs` chunk section to refer to more general chunks
+
+* Updated `aDAT` description to indicate that all frames must either be in a single chunk, or that the first chunk must have empty data.
+
+* Added notice that each frame's region (x,y,width,height) must lie completely within the parent PNG canvas
+
+* Fixed dispose_op description (after, not before)
+
+* Changed dispose_op to render_op; added disposal description; added BLEND flag
+
+* Changed delay_time to a delay numerator and denominator, for specifying delays that don't into integer numbers of milliseconds.
+
+* Added note to clarify that palette animation is not supported.
+
+* Removed start_frame from aCTL; require fcTL for frame 0; added SKIP_FRAME fCTL flag.
+
+== From 0.4 ==
+
+* Reintroduced num_frames into aCTL
+
+* Moved sequence_number from aDAT into fCTL
+
+* Changed contents of aDAT to fCTL+IDATs+fEND
+
+* Added clarifications on what's allowed and what isn't
+
+* Renamed aCTL to acTL, fCTL to fcTL, aDAT to fdAT and fEND to feND to comply with the PNG spec chunk naming requirements
+
+== From 0.5 ==
+
+* Added the IHDR and PLTE CRCs to the acTl chunk
+
+* The acTL fcTL and adAT are now copy safe, renamed them to acTl, fcTl and adAt
+
+== From 0.6 ==
+
+* The fdAt chunk is no longer a container for other chunks, but rather a replacement for an IDAT chunk
+
+* Removed the feND chunk
+
+* Added a sequence number field to fdAt
+
+* Reintroduced the width and height fields in fcTl
+
+== From 0.7 ==
+
+* Removed 'hidden' flag, instead only the first frame can be hidden and it is signaled with a missing fcTl
+
+* IDAT, fcTl and fdAt are no longer required to have no other chunks in between them
+
+== From 0.8 ==
+
+* Removed CRCs for IHDR and PLTE from acTl
+
+* The acTL fcTL and adAT are now not copy safe, renamed them to acTL, fcTL and adAT
+
+== From 0.9 ==
+
+* Split render_op into dispose_op and blend_op
+
+== From 0.10 ==
+
+* No changes
+
+= Test Encoder and Sample Images =
+
+*Sample images are available from the APNG implementation page at http://littlesvr.ca/apng/
+*An encoder (open source) is available in Mozilla versions newer than alpha 4.
+*An application (open source) using the Mozilla encoder to assemble APNGs available here: http://littlesvr.ca/apng/apngedit.html
+
+= A. References =
+
+*http://www.w3.org/TR/PNG/ "Portable Network Graphics (PNG) Specification (Second Edition)"
+*http://pmt.sourceforge.net/specs/png-1.2-pdg.html "Extensions to the PNG Specification, Version 1.2.0"
+*http://www.w3.org/Graphics/GIF/spec-gif89a.txt "Graphics Interchange Format 89a"
+*http://www.animatedpng.com "APNG Project - official Site"
+
+= B. Tests =
+* http://philip.html5.org/tests/apng/tests.html

@@ -92,6 +92,25 @@ pixels are stored as raw bytes using Nim's string as container:
 | grey1,a1,grey2,a2,...,greyn,an | GREY ALPHA 8 bit |
 
 
+## Animated PNG (APNG)
+
+Since version 0.2.0, nimPNG provides support for [Animated PNG](https://wiki.mozilla.org/APNG_Specification).
+
+### Decoding
+
+```Nim
+#let png = loadPNG("image.png", LCT_RGBA, 8)
+# or
+#let png = decodePNG32(raw_bytes)
+```
+
+The usual loadPNG and decodePNG can decode both unanimated and animated PNG.
+png.width, png.height, png.data works as usual. If the decoded PNG is an APNG, png.data will contains default frame.
+Animation frames can be accessible via png.frames. If it is not an APNG, png.frames will be nil.
+
+### Encoding
+
+
 [nimpng-travisci]: https://travis-ci.org/jangko/nimPNG
 [badge-nimpng-travisci]: https://travis-ci.org/jangko/nimPNG.svg?branch=master
 
