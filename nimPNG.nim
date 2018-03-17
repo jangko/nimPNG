@@ -29,7 +29,7 @@ import streams, endians, tables, hashes, math
 import private.buffer, private.nimz
 
 const
-  NIM_PNG_VERSION = "0.2.0"
+  NIM_PNG_VERSION = "0.2.1"
 
 type
   PNGChunkType = distinct int32
@@ -2021,7 +2021,7 @@ proc decodePNG*(s: Stream, settings = PNGDecoder(nil)): PNG =
   result = png
 
 when not defined(js):
-  proc loadPNG*(fileName: string, colorType: PNGColorType, bitDepth: int, settings: PNGDecoder): PNGResult =
+  proc loadPNG*(fileName: string, colorType: PNGColorType, bitDepth: int, settings: PNGDecoder = nil): PNGResult =
     try:
       var s = newFileStream(fileName, fmRead)
       if s == nil: return nil
@@ -3165,7 +3165,7 @@ proc encoderCore(png: PNG) =
     raise PNGError("unexisting interlace mode")
 
   if not bitDepthAllowed(modeOut.colorType, modeOut.bitDepth):
-      raise PNGError("colorType and bitDepth combination not allowed")
+    raise PNGError("colorType and bitDepth combination not allowed")
 
   if not png.isAPNG: png.apngPixels = @[""]
   shallowCopy(png.apngPixels[0], png.pixels)
