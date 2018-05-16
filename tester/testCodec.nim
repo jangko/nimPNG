@@ -109,9 +109,9 @@ proc testOtherPattern1() =
 
   for y in 0..h-1:
     for x in 0..w-1:
-      image.data[4 * w * y + 4 * x + 0] = chr(int(127 * (1 + math.sin(float(                    x * x +                     y * y) / (float(w * h) / 8.0)))))
-      image.data[4 * w * y + 4 * x + 1] = chr(int(127 * (1 + math.sin(float((w - x - 1) * (w - x - 1) +                     y * y) / (float(w * h) / 8.0)))))
-      image.data[4 * w * y + 4 * x + 2] = chr(int(127 * (1 + math.sin(float(                    x * x + (h - y - 1) * (h - y - 1)) / (float(w * h) / 8.0)))))
+      image.data[4 * w * y + 4 * x + 0] = chr(int(127 * (1 + math.sin(float(x * x + y * y) / (float(w * h) / 8.0)))))
+      image.data[4 * w * y + 4 * x + 1] = chr(int(127 * (1 + math.sin(float((w - x - 1) * (w - x - 1) + y * y) / (float(w * h) / 8.0)))))
+      image.data[4 * w * y + 4 * x + 2] = chr(int(127 * (1 + math.sin(float(x * x + (h - y - 1) * (h - y - 1)) / (float(w * h) / 8.0)))))
       image.data[4 * w * y + 4 * x + 3] = chr(int(127 * (1 + math.sin(float((w - x - 1) * (w - x - 1) + (h - y - 1) * (h - y - 1)) / (float(w * h) / 8.0)))))
 
   doCodecTest(image)

@@ -1179,7 +1179,7 @@ proc nzDeflate(nz: nzStream) =
   var blocksize = 0
   var insize = nz.data.len
 
-  if   nz.btype  > 2: raise newNZError("invalid block type")
+  if nz.btype > 2: raise newNZError("invalid block type")
   elif nz.btype == 0:
     nz.deflateNoCompression
     return
