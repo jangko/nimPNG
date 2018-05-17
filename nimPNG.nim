@@ -896,7 +896,7 @@ proc parsePNG(s: Stream, settings: PNGDecoder): PNG =
     let length = s.readInt32BE()
     let chunkType = PNGChunkType(s.readInt32BE())
 
-    let data = s.readStr(length)
+    let data = if length == 0: "" else: s.readStr(length)
     let crc = cast[uint32](s.readInt32BE())
     let calculatedCRC = crc32(crc32(0, $chunkType), data)
     if calculatedCRC != crc and not PNGDecoder(png.settings).ignoreCRC:
