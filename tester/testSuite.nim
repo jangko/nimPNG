@@ -15,7 +15,7 @@ proc loadPNG(fileName: string): BMP =
 
 proc write(bmp: BMP): string =
   var s = newStringStream()
-  s.write(bmp)
+  s.writeBMP(bmp)
   result = s.data
 
 proc convert(dir: string) =

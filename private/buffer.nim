@@ -20,7 +20,11 @@ proc subbuffer*[T](b: Buffer[T], offset: int): Buffer[T] =
     shallowCopy(result.data, b.data)
     result.offset = b.offset + offset
 
-template isNil*[T](b: Buffer[T]): bool = b.data.isNil
+template isNil*[T](b: Buffer[T]): bool =
+    when T is (string or seq):
+        b.data.len == 0
+    else:
+        b.data.isNil
 
 template copyElements*[T](dst: var Buffer[T], src: Buffer[T], count: int) =
     when defined(js):
