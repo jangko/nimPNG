@@ -26,7 +26,7 @@
 #-------------------------------------
 
 import streams, endians, tables, hashes, math
-import private.buffer, private.nimz
+import private/buffer, private/nimz
 
 const
   NIM_PNG_VERSION = "0.2.1"
@@ -330,16 +330,14 @@ proc copyTo*(src, dest: PNGColorMode) =
   dest.colorType = src.colorType
   dest.bitDepth = src.bitDepth
   dest.paletteSize = src.paletteSize
-  if src.palette != nil:
-    newSeq(dest.palette, src.paletteSize)
-    for i in 0..src.palette.len-1: dest.palette[i] = src.palette[i]
+  newSeq(dest.palette, src.paletteSize)
+  for i in 0..src.palette.len-1: dest.palette[i] = src.palette[i]
 
 proc newColorMode*(mode: PNGColorMode): PNGColorMode =
   new(result)
   mode.copyTo(result)
 
 proc addPalette*(mode: PNGColorMode, r, g, b, a: int) =
-  if mode.palette == nil: mode.palette = @[]
   mode.palette.add RGBA8(r: chr(r), g: chr(g), b: chr(b), a: chr(a))
   mode.paletteSize = mode.palette.len
 
@@ -1938,7 +1936,7 @@ proc processingAPNG(apng: APNG, colorType: PNGcolorType, bitDepth: int) =
   if apng.png.firstFrameIsDefaultImage:
     start = 1
     # IDAT already processed, so we add a dummy here
-    frameData.add string(nil)
+    frameData.add ""
 
   for x in apng.png.apngChunks:
     if x.chunkType == fcTL:
@@ -2155,7 +2153,7 @@ proc makePNGEncoder*(): PNGEncoder =
   s.modeIn = newColorMode()
   s.modeOut = newColorMode()
   s.forcePalette = false
-  s.predefinedFilters = nil
+  s.predefinedFilters = ""
   s.addID = false
   s.textCompression = true
   s.interlaceMethod = IM_NONE
@@ -3113,7 +3111,7 @@ proc addChunkacTL(png: PNG, numFrames, numPlays: int) =
 
 proc addChunkfcTL(png: PNG, chunk: APNGFrameControl, sequenceNumber: int) =
   chunk.chunkType = fcTL
-  if chunk.data.isNil:
+  if chunk.data == "":
     chunk.data = newStringOfCap(26)
   chunk.sequenceNumber = sequenceNumber
   png.chunks.add chunk
@@ -3319,7 +3317,7 @@ proc prepareAPNG*(colorType: PNGcolorType, bitDepth, numPlays: int, settings = P
   png.isAPNG = true
   png.apngChunks = @[]
   png.apngPixels = @[]
-  png.pixels = nil
+  png.pixels = ""
   png.firstFrameIsDefaultImage = false
   png.width = 0
   png.height = 0
@@ -3337,7 +3335,7 @@ proc addDefaultImage*(png: PNG, input: string, width, height: int, ctl = APNGFra
   png.firstFrameIsDefaultImage = ctl != nil
   if ctl != nil:
     png.apngChunks.add ctl
-    png.apngPixels.add nil # add dummy
+    png.apngPixels.add "" # add dummy
     result = result and (ctl.xOffset == 0)
     result = result and (ctl.yOffset == 0)
     result = result and (ctl.width == width)
@@ -3375,7 +3373,7 @@ proc encodeAPNG*(png: PNG): string =
     result = s.data
   except:
     debugEcho getCurrentExceptionMsg()
-    result = nil
+    result = ""
 
 when not defined(js):
   proc saveAPNG*(png: PNG, fileName: string): bool =
