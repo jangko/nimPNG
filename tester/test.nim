@@ -2,11 +2,11 @@ import nimPNG, streams, minibmp, os, strutils
 
 proc write(bmp: BMP): string =
   var s = newStringStream()
-  s.write(bmp)
+  minibmp.write(s, bmp)
   result = s.data
 
 proc toBMP(png: PNGResult, fileName: string) =
-  if png.frames != nil:
+  if png.frames.len != 0:
     var frame = 0
     for x in png.frames:
       var bmp = newBMP(x.ctl.width, x.ctl.height)

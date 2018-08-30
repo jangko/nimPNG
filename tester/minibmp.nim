@@ -43,7 +43,7 @@ proc write*(s: Stream, bmp: BMP) =
 
   let bytesPerRow = bmp.width * 3
   let paddingLen  = stride - bytesPerRow
-  let padding     = if paddingLen > 0: newString(paddingLen) else: nil
+  let padding     = if paddingLen > 0: newString(paddingLen) else: ""
 
   for i in 0..bmp.height-1:
     s.writeData(addr(bmp.data[i * bytesPerRow]), bytesPerRow)
