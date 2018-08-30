@@ -1,14 +1,14 @@
 # Package
-version       = "0.2.2"
+version       = "0.2.3"
 author        = "Andri Lim"
 description   = "PNG encoder and decoder"
 license       = "MIT"
 
 # Deps
-requires "nim >= 0.11.2"
+requires "nim >= 0.18.1"
 
 task tests, "Run tests":
-    withDir("tester"):
-        exec "nim c -r test.nim"
-        exec "nim c -r testCodec.nim"
-        exec "nim c -r testSuite.nim"
+  withDir("tester"):
+    exec "nim c -r test.nim"
+    exec "nim c -r testCodec.nim"
+    exec "nim c -r testSuite.nim"

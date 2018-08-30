@@ -1,5 +1,5 @@
 import nimPNG, streams, math, strutils, tables, base64, os
-import private.buffer
+import private/buffer
 
 type
   Image = ref object
