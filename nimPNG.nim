@@ -26,10 +26,10 @@
 #-------------------------------------
 
 import streams, endians, tables, hashes, math
-import private/buffer, private/nimz
+import nimPNG/[buffer, nimz]
 
 const
-  NIM_PNG_VERSION = "0.2.1"
+  NIM_PNG_VERSION = "0.2.4"
 
 type
   PNGChunkType = distinct int32
