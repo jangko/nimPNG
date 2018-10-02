@@ -1,11 +1,12 @@
 # Package
-version       = "0.2.3"
+version       = "0.2.4"
 author        = "Andri Lim"
 description   = "PNG encoder and decoder"
 license       = "MIT"
+skipDirs      = @["apng", "suite", "tester"]
 
 # Deps
-requires "nim >= 0.11.2"
+requires "nim >= 0.19.0"
 
 task tests, "Run tests":
     withDir("tester"):
