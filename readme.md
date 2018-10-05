@@ -2,7 +2,10 @@
 Portable Network Graphics Encoder and Decoder written in Nim store lossless image with good compression.
 Since version 0.2.0 also support Animated PNG!
 
-[![Build Status][badge-nimpng-travisci]][nimpng-travisci]
+[![Build Status (Travis)](https://img.shields.io/travis/jangko/nimPNG/master.svg?label=Linux%20/%20macOS "Linux/macOS build status (Travis)")](https://travis-ci.org/jangko/nimPNG)
+[![Windows build status (Appveyor)](https://img.shields.io/appveyor/ci/jangko/nimPNG/master.svg?label=Windows "Windows build status (Appveyor)")](https://ci.appveyor.com/project/jangko/nimPNG)
+![nimble](https://img.shields.io/badge/available%20on-nimble-yellow.svg?style=flat-square)
+![license](https://img.shields.io/github/license/citycide/cascade.svg?style=flat-square)
 
 all PNG standard color mode are supported:
 
@@ -152,6 +155,3 @@ the default image will be part of the animation. If `ctl` is nil, default image 
 
 You can read the details of frame control from [spec](https://wiki.mozilla.org/APNG_Specification).
 You can also see an example in tester/test.nim -> generateAPNG
-
-[nimpng-travisci]: https://travis-ci.org/jangko/nimPNG
-[badge-nimpng-travisci]: https://travis-ci.org/jangko/nimPNG.svg?branch=master
