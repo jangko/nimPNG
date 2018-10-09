@@ -155,3 +155,7 @@ the default image will be part of the animation. If `ctl` is nil, default image 
 
 You can read the details of frame control from [spec](https://wiki.mozilla.org/APNG_Specification).
 You can also see an example in tester/test.nim -> generateAPNG
+
+## Installation via nimble
+> nimble install nimPNG
+
