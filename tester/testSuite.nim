@@ -1,6 +1,6 @@
 import streams, os, strutils, nimPNG, minibmp
 
-proc loadPNG(fileName: string): BMP =
+proc loadPNG2BMP(fileName: string): BMP =
   var settings = makePNGDecoder()
   settings.readTextChunks = true
   var png = loadPNG24(fileName, settings)
@@ -13,7 +13,7 @@ proc loadPNG(fileName: string): BMP =
     result.data[px + 1] = png.data[px + 1]
     result.data[px + 2] = png.data[px + 2]
 
-proc write(bmp: BMP): string =
+proc toString(bmp: BMP): string =
   var s = newStringStream()
   s.writeBMP(bmp)
   result = s.data
@@ -30,9 +30,9 @@ proc convert(dir: string) =
     let bmpName = path.dir & DirSep & path.name & ExtSep & "bmp"
 
     echo fileName, " vs. ", bmpName
-    var bmp = loadPNG(fileName)
+    var bmp = loadPNG2BMP(fileName)
     if bmp != nil:
-      let data1 = bmp.write()
+      let data1 = bmp.toString()
       let data2 = readFile(bmpName)
       assert data1 == data2
 

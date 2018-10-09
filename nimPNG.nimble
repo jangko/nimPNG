@@ -13,3 +13,7 @@ task tests, "Run tests":
     exec "nim c -r test.nim"
     exec "nim c -r testCodec.nim"
     exec "nim c -r testSuite.nim"
+    
+    exec "nim c -r -d:release test.nim"
+    exec "nim c -r -d:release testCodec.nim"
+    exec "nim c -r -d:release testSuite.nim"
