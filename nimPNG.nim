@@ -2711,8 +2711,6 @@ proc filterScanLine(output: var DataBuf, scanLine, prevLine: DataBuf, len, byteW
       #paethPredictor(scanLine[i - byteWidth], 0, 0) is always scanLine[i - byteWidth]
       for i in byteWidth..len-1:
         output[i] = chr(scanLine[i].uint - scanLine[i - byteWidth].uint)
-  else:
-    raise PNGError("unsupported filter type")
 
 proc filterZero(output: var DataBuf, input: DataBuf, w, h, bpp: int) =
   #the width of a scanline in bytes, not including the filter type
