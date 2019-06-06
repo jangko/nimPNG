@@ -24,7 +24,6 @@ proc getNumColorChannels(colorType: PNGcolorType): int =
   of LCT_PALETTE: result = 1
   of LCT_GREY_ALPHA: result = 2
   of LCT_RGBA: result = 4
-  else: result = 0
 
 proc generateTestImage(width, height: int, colorType = LCT_RGBA, bitDepth = 8): Image =
   new(result)

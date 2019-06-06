@@ -254,10 +254,10 @@ proc makeChunkType*(val: string): PNGChunkType =
 proc `$`*(tag: PNGChunkType): string =
   result = newString(4)
   let t = int(tag)
-  result[0] = chr(toU32(t shr 24) and 0xFF)
-  result[1] = chr(toU32(t shr 16) and 0xFF)
-  result[2] = chr(toU32(t shr 8) and 0xFF)
-  result[3] = chr(toU32(t) and 0xFF)
+  result[0] = chr(uint32(t shr 24) and 0xFF)
+  result[1] = chr(uint32(t shr 16) and 0xFF)
+  result[2] = chr(uint32(t shr 8) and 0xFF)
+  result[3] = chr(uint32(t) and 0xFF)
 
 proc `==`(a, b: PNGChunkType): bool = int(a) == int(b)
 #proc isAncillary(a: PNGChunkType): bool = (int(a) and (32 shl 24)) != 0
