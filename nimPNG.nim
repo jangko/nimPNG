@@ -2682,35 +2682,35 @@ proc filterScanLine(output: var DataBuf, scanLine, prevLine: DataBuf, len, byteW
   of FLT_SUB:
     for i in 0..byteWidth-1: output[i] = scanLine[i]
     for i in byteWidth..len-1:
-      output[i] = chr(scanLine[i].uint - scanLine[i - byteWidth].uint)
+      output[i] = chr((scanLine[i].uint - scanLine[i - byteWidth].uint) and 0xFF)
   of FLT_UP:
     if not prevLine.isNil:
       for i in 0..len-1:
-        output[i] = chr(scanLine[i].uint - prevLine[i].uint)
+        output[i] = chr((scanLine[i].uint - prevLine[i].uint) and 0xFF)
     else:
       for i in 0..len-1: output[i] = scanLine[i]
   of FLT_AVERAGE:
     if not prevLine.isNil:
       for i in 0..byteWidth-1:
-        output[i] = chr(scanLine[i].uint - (prevLine[i].uint div 2))
+        output[i] = chr((scanLine[i].uint - (prevLine[i].uint div 2)) and 0xFF)
       for i in byteWidth..len-1:
-        output[i] = chr(scanLine[i].uint - ((scanLine[i - byteWidth].uint + prevLine[i].uint) div 2))
+        output[i] = chr((scanLine[i].uint - ((scanLine[i - byteWidth].uint + prevLine[i].uint) div 2)) and 0xFF)
     else:
       for i in 0..byteWidth-1: output[i] = scanLine[i]
       for i in byteWidth..len-1:
-        output[i] = chr(scanLine[i].uint - (scanLine[i - byteWidth].uint div 2))
+        output[i] = chr((scanLine[i].uint - (scanLine[i - byteWidth].uint div 2)) and 0xFF)
   of FLT_PAETH:
     if not prevLine.isNil:
       #paethPredictor(0, prevLine[i], 0) is always prevLine[i]
       for i in 0..byteWidth-1:
-        output[i] = chr(scanLine[i].uint - prevLine[i].uint)
+        output[i] = chr((scanLine[i].uint - prevLine[i].uint) and 0xFF)
       for i in byteWidth..len-1:
-        output[i] = chr(scanLine[i].uint - paethPredictor(ord(scanLine[i - byteWidth]), ord(prevLine[i]), ord(prevLine[i - byteWidth])).uint)
+        output[i] = chr((scanLine[i].uint - paethPredictor(ord(scanLine[i - byteWidth]), ord(prevLine[i]), ord(prevLine[i - byteWidth])).uint) and 0xFF)
     else:
       for i in 0..byteWidth-1: output[i] = scanLine[i]
       #paethPredictor(scanLine[i - byteWidth], 0, 0) is always scanLine[i - byteWidth]
       for i in byteWidth..len-1:
-        output[i] = chr(scanLine[i].uint - scanLine[i - byteWidth].uint)
+        output[i] = chr((scanLine[i].uint - scanLine[i - byteWidth].uint) and 0xFF)
 
 proc filterZero(output: var DataBuf, input: DataBuf, w, h, bpp: int) =
   #the width of a scanline in bytes, not including the filter type
