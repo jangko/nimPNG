@@ -20,9 +20,9 @@ proc toBMP(png: PNGResult, fileName: string) =
           bmp.data[px + 2] = chr(0xFF)
         else:
           let alpha = uint(x.data[px4 + 3])
-          bmp.data[px]     = chr(uint8(255) + uint8(((x.data[px4 + 2].uint - 255'u) * alpha) shr 8))
-          bmp.data[px + 1] = chr(uint8(255) + uint8(((x.data[px4 + 1].uint - 255'u) * alpha) shr 8))
-          bmp.data[px + 2] = chr(uint8(255) + uint8(((x.data[px4 + 0].uint - 255'u) * alpha) shr 8))
+          bmp.data[px]     = chr(uint8(255) + uint8((((x.data[px4 + 2].uint - 255'u) * alpha) shr 8) and 0xFF))
+          bmp.data[px + 1] = chr(uint8(255) + uint8((((x.data[px4 + 1].uint - 255'u) * alpha) shr 8) and 0xFF))
+          bmp.data[px + 2] = chr(uint8(255) + uint8((((x.data[px4 + 0].uint - 255'u) * alpha) shr 8) and 0xFF))
 
       let bmpName = fileName & "_" & $frame & ".bmp"
       #var s = newFileStream(bmpName, fmWrite)
