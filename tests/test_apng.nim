@@ -1,4 +1,4 @@
-import nimPNG, streams, minibmp, os, strutils
+import ../nimPNG, streams, ./minibmp, os, strutils
 
 proc write(bmp: BMP): string =
   var s = newStringStream()
@@ -44,7 +44,7 @@ proc convert(dir: string) =
     let ext = toLowerAscii(path.ext)
     if ext != ".png": continue
 
-    let bmpName = path.dir & DirSep & "frames" & DirSep & path.name
+    let bmpName = path.dir / "frames" / path.name
     echo fileName
 
     let png = loadPNG32(fileName)
@@ -56,7 +56,7 @@ proc generateAPNG() =
   var frames: array[numFrames, PNGResult]
 
   for i in 0..<numFrames:
-    frames[i] = loadPNG24(".." & DirSep & "apng" & DirSep & "raw" & DirSep & "frame" & $i & ".png")
+    frames[i] = loadPNG24("tests" / "apng" / "raw" / "frame" & $i & ".png")
 
   var png = prepareAPNG24()
 
@@ -90,14 +90,16 @@ proc generateAPNG() =
       echo "failed to add frames"
       quit(1)
 
-  if not png.saveAPNG("rainbow.png"):
-    echo "failed to save rainbow.png"
+  let rainbowPNG = png.encodeAPNG()
+  let rainbowFile = readFile("tests" / "misc" / "rainbow.png")
+  if rainbowPNG != rainbowFile:
+    echo "failed to encode rainbow.png"
     quit(1)
 
 proc main() =
-  let data = loadPNG32("sample.png")
+  let data = loadPNG32("tests" / "misc" / "sample.png")
   assert(not data.isNil)
-  convert(".." & DirSep & "apng")
+  convert("tests" / "apng")
   generateAPNG()
 
 main()

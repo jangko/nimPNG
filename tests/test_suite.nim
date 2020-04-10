@@ -1,4 +1,4 @@
-import streams, os, strutils, nimPNG, minibmp
+import streams, os, strutils, ../nimPNG, ./minibmp
 
 proc loadPNG2BMP(fileName: string): BMP =
   var settings = makePNGDecoder()
@@ -27,7 +27,7 @@ proc convert(dir: string) =
     if ext != ".png": continue
     if path.name[0] == 'x': continue
 
-    let bmpName = path.dir & DirSep & path.name & ExtSep & "bmp"
+    let bmpName = path.dir / path.name & ExtSep & "bmp"
 
     echo fileName, " vs. ", bmpName
     var bmp = loadPNG2BMP(fileName)
@@ -36,4 +36,4 @@ proc convert(dir: string) =
       let data2 = readFile(bmpName)
       assert data1 == data2
 
-convert(".." & DirSep & "suite")
+convert("tests" / "suite")

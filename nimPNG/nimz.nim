@@ -1221,6 +1221,9 @@ proc nzDeflateInit*(input: string): nzStream =
   nz.mode = nzsDeflate
   result = nz
 
+template nzCompressInit*(input: string): nzStream =
+  nzDeflateInit(input)
+
 proc nzInflateInit*(input: string): nzStream =
   var nz = nzInit()
   nz.data = newStringOfCap(1024 * 1024 * 5) # Allocate 5MB in advance
@@ -1229,6 +1232,9 @@ proc nzInflateInit*(input: string): nzStream =
   nz.bits.databitlen = input.len * 8
   nz.mode = nzsInflate
   result = nz
+
+template nzDecompressInit*(input: string): nzStream =
+  nzInflateInit(input)
 
 proc nzGetResult(nz: nzStream): string =
   if nz.mode == nzsInflate: return nz.data
