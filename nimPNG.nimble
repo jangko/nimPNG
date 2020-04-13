@@ -13,10 +13,13 @@ task tests, "Run tests":
   exec "nim c -r tests/test_codec.nim"
   exec "nim c -r tests/test_suite.nim"
   exec "nim c -r tests/test_nimz.nim"
+  exec "nim c -r tests/test_filters.nim"
 
   exec "nim c -r -d:release tests/test_apng.nim"
   exec "nim c -r -d:release tests/test_codec.nim"
   exec "nim c -r -d:release tests/test_suite.nim"
   exec "nim c -r -d:release tests/test_nimz.nim"
+  exec "nim c -r -d:release tests/test_filters.nim"
 
   exec "nim c -r --gc:arc -d:release tests/test_nimz.nim"
+  exec "nim c -r --gc:arc -d:release tests/test_filters.nim"
