@@ -3150,6 +3150,10 @@ proc encoderCore(png: PNG) =
     (modeOut.paletteSize == 0 or modeOut.paletteSize > 256):
     raise PNGError("invalid palette size, it is only allowed to be 1-256")
 
+  if state.filterStrategy == LFS_PREDEFINED:
+    if state.predefinedFilters.len < png.width:
+      raise PNGError("predefinedFilters contains not enough filterType compared to image height")
+
   let inputSize = getRawSize(png.width, png.height, modeIn)
   if png.pixels.len < inputSize:
     raise PNGError("not enough input to encode")
