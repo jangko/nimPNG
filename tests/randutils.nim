@@ -41,7 +41,7 @@ proc randPrimitives*[T](val: int): T =
 proc randList*(T: typedesc, fillGen: RandGen, listLen: int, unique: static[bool] = true): seq[T] =
   result = newSeqOfCap[T](listLen)
   when unique:
-    var set = initSet[T]()
+    var set = initHashSet[T]()
     for len in 0..<listLen:
       while true:
         let x = randPrimitives[T](fillGen.getVal())

@@ -1,3 +1,5 @@
+import math
+
 type
   PNGFilter* = enum
     FLT_NONE,
@@ -40,7 +42,7 @@ proc filterScanline*(output: var openArray[byte], input: openArray[byte], byteWi
   of FLT_PAETH:
     for i in 0..<byteWidth:
       output[i] = input[i]
-    #paethPredictor(prevPix, 0, 0) is always prevPix
+    # paethPredictor(prevPix, 0, 0) is always prevPix
     for i in byteWidth..<len:
       output[i] = byte((currPix - prevPix) and 0xFF)
 
@@ -70,29 +72,38 @@ proc filterScanline*(output: var openArray[byte], input, prevLine: openArray[byt
     for i in byteWidth..<len:
       output[i] = byte((currPix - ((prevPix + upPix) div 2)) and 0xFF)
   of FLT_PAETH:
-    #paethPredictor(0, upPix, 0) is always upPix
+    # paethPredictor(0, upPix, 0) is always upPix
     for i in 0..<byteWidth:
       output[i] = byte((currPix - upPix) and 0xFF)
     for i in byteWidth..<len:
       output[i] = byte((currPix - paethPredictor(prevPixI, upPixI, prevUpPix)) and 0xFF)
-#[
-proc filterZero(output: var DataBuf, input: DataBuf, w, h, bpp: int) =
-  #the width of a input in bytes, not including the filter type
+
+proc filterZero*(output: var openArray[byte], input: openArray[byte], w, h, bpp: int) =
+  # the width of a input in bytes, not including the filter type
   let lineBytes = (w * bpp + 7) div 8
-  #byteWidth is used for filtering, is 1 when bpp < 8, number of bytes per pixel otherwise
+  # byteWidth is used for filtering, is 1 when bpp < 8, number of bytes per pixel otherwise
   let byteWidth = (bpp + 7) div 8
-  var prevLine: DataBuf
 
-  for y in 0..h-1:
-    let outindex = (1 + lineBytes) * y #the extra filterbyte added to each row
-    let inindex = lineBytes * y
-    output[outindex] = byte(int(FLT_NONE)) #filter type byte
-    var outp = output.subbuffer(outindex + 1)
-    let input = input.subbuffer(inindex)
-    filterScanline(outp, input, prevLine, lineBytes, byteWidth, FLT_NONE)
-    prevLine = input.subbuffer(inindex)
+  # line 0
+  if h > 0:
+    output[0] = byte(FLT_NONE) # filterType byte
+    filterScanline(output.toOpenArray(1, output.len-1), # skip filterType
+      input, byteWidth, lineBytes, FLT_NONE)
 
-proc filterMinsum(output: var DataBuf, input: DataBuf, w, h, bpp: int) =
+  # next line start from 1
+  var prevIndex = 0
+  for y in 1..<h:
+    let outIndex = (1 + lineBytes) * y # the extra filterType added to each row
+    let inIndex = lineBytes * y
+    output[outIndex] = byte(FLT_NONE) # filterType byte
+    filterScanline(output.toOpenArray(outIndex + 1, output.len-1), # skip filterType
+      input.toOpenArray(inIndex, input.len-1),
+      input.toOpenArray(prevIndex, input.len-1),
+      byteWidth, lineBytes, FLT_NONE)
+    prevIndex = inIndex
+    
+#[
+proc filterMinsum*(output: var openArray[byte], input: openArray[byte], w, h, bpp: int) =
   let lineBytes = (w * bpp + 7) div 8
   let byteWidth = (bpp + 7) div 8
 
@@ -138,61 +149,85 @@ proc filterMinsum(output: var DataBuf, input: DataBuf, w, h, bpp: int) =
     output[y * (lineBytes + 1)] = byte(bestType)
     for x in 0..lineBytes-1:
       output[y * (lineBytes + 1) + 1 + x] = attempt[bestType][x]
+]#
 
-proc filterEntropy(output: var DataBuf, input: DataBuf, w, h, bpp: int) =
+proc filterEntropy*(output: var openArray[byte], input: openArray[byte], w, h, bpp: int) =
   let lineBytes = (w * bpp + 7) div 8
   let byteWidth = (bpp + 7) div 8
-  var prevLine: DataBuf
 
-  var sum: array[0..4, float]
-  var smallest = 0.0
-  var bestType = 0
-  var attempt: array[0..4, string]
-  var count: array[0..255, int]
+  var
+    sum: array[0..4, float]
+    smallest = 0.0
+    bestType = 0
+    attempt: array[0..4, seq[byte]]
+    count: array[0..255, int]
+    prevIndex = 0
 
   for i in 0..attempt.high:
-    attempt[i] = newString(lineBytes)
+    attempt[i] = newSeq[byte](lineBytes)
 
-  for y in 0..h-1:
-    #try the 5 filter types
+  for y in 0..<h:
+    # try the 5 filter types
+    let inIndex = y * lineBytes
     for fType in 0..4:
-      var outp = initBuffer(attempt[fType])
-      filterScanline(outp, input.subbuffer(y * lineBytes), prevLine, lineBytes, byteWidth, PNGFilter0(fType))
+      if y == 0:
+        filterScanline(attempt[fType],
+          input.toOpenArray(inIndex, input.len-1),
+          byteWidth, lineBytes, PNGFilter(fType))
+      else:
+        filterScanline(attempt[fType],
+          input.toOpenArray(inIndex, input.len-1),
+          input.toOpenArray(prevIndex, input.len-1),
+          byteWidth, lineBytes, PNGFilter(fType))
+
       for x in 0..255: count[x] = 0
       for x in 0..lineBytes-1:
-        inc count[ord(attempt[fType][x])]
-      inc count[fType] #the filter type itself is part of the input
+        inc count[int(attempt[fType][x])]
+
+      inc count[fType] # the filterType itself is part of the input
       sum[fType] = 0
       for x in 0..255:
         let p = float(count[x]) / float(lineBytes + 1)
         if count[x] != 0: sum[fType] += log2(1 / p) * p
 
-      #check if this is smallest sum (or if type == 0 it's the first case so always store the values)
+      # check if this is smallest sum (or if type == 0 it's the first case so always store the values)
       if (fType == 0) or (sum[fType] < smallest):
         bestType = fType
         smallest = sum[fType]
 
-    prevLine = input.subbuffer(y * lineBytes)
-    #now fill the out values*/
-    #the first byte of a input will be the filter type
+    prevIndex = inIndex
+    # now fill the out values
+    # the first byte of a input will be the filter type
     output[y * (lineBytes + 1)] = byte(bestType)
-    for x in 0..lineBytes-1:
+    for x in 0..<lineBytes:
       output[y * (lineBytes + 1) + 1 + x] = attempt[bestType][x]
 
-proc filterPredefined(output: var DataBuf, input: DataBuf, w, h, bpp: int, state: PNGEncoder) =
+proc filterPredefined*(output: var openArray[byte], input: openArray[byte],
+  w, h, bpp: int, predefinedFilters: openArray[PNGFilter]) =
+
   let lineBytes = (w * bpp + 7) div 8
   let byteWidth = (bpp + 7) div 8
-  var prevLine: DataBuf
 
-  for y in 0..h-1:
-    let outindex = (1 + lineBytes) * y #the extra filterbyte added to each row
-    let inindex = lineBytes * y
-    let fType = ord(state.predefinedFilters[y])
-    output[outindex] = byte(fType) #filter type byte
-    var outp = output.subbuffer(outindex + 1)
-    filterScanline(outp, input.subbuffer(inindex), prevLine, lineBytes, byteWidth, PNGFilter0(fType))
-    prevLine = input.subbuffer(inindex)
+  # line 0
+  if h > 0:
+    output[0] = byte(predefinedFilters[0]) # filterType byte
+    filterScanline(output.toOpenArray(1, output.len-1), # skip filterType
+      input, byteWidth, lineBytes, predefinedFilters[0])
 
+  # next line start from 1
+  var prevIndex = 0
+  for y in 1..<h:
+    let outIndex = (1 + lineBytes) * y # the extra filterType added to each row
+    let inIndex = lineBytes * y
+    let fType = ord(predefinedFilters[y])
+    output[outIndex] = byte(fType) # filterType byte
+    filterScanline(output.toOpenArray(outIndex + 1, output.len-1), # skip filterType
+      input.toOpenArray(inIndex, input.len-1),
+      input.toOpenArray(prevIndex, input.len-1),
+      byteWidth, lineBytes, PNGFilter(fType))
+    prevIndex = inIndex
+
+#[
 proc filterBruteForce(output: var DataBuf, input: DataBuf, w, h, bpp: int) =
   let lineBytes = (w * bpp + 7) div 8
   let byteWidth = (bpp + 7) div 8
@@ -308,3 +343,33 @@ proc unfilterScanline*(output: var openArray[byte], input, prevLine: openArray[b
       output[i] = byte((currPix + upPix) and 0xFF)
     for i in byteWidth..<len:
       output[i] = byte((currPix + paethPredictor(prevPixI, upPixI, prevUpPix)) and 0xFF)
+
+proc unfilter*(output: var openArray[byte], input: openArray[byte], w, h, bpp: int) =
+  # For PNG filter method 0
+  # this function unfilters a single image (e.g. without interlacing this is called once, with Adam7 seven times)
+  # output must have enough bytes allocated already, input must have the scanLines + 1 filtertype byte per scanLine
+  # w and h are image dimensions or dimensions of reduced image, bpp is bits per pixel
+  # input and output are allowed to be the same memory address (but aren't the same size since in has the extra filter bytes)
+
+  # byteWidth is used for filtering, is 1 when bpp < 8, number of bytes per pixel otherwise
+  let byteWidth = (bpp + 7) div 8
+  let lineBytes = (w * bpp + 7) div 8
+
+  # line 0, without prevLine
+  if h > 0:
+    unfilterScanLine(output,
+      input.toOpenArray(1, input.len-1), # skip the filterType
+      byteWidth, lineBytes,
+      PNGFilter(input[0]))
+
+  # next line start from 1
+  var prevIndex = 0
+  for y in 1..<h:
+    let outIndex = lineBytes * y
+    let inIndex = (1 + lineBytes) * y # the extra filterbyte added to each row
+    let filterType = PNGFilter(input[inIndex])
+    unfilterScanLine(output.toOpenArray(outIndex, output.len-1),
+      input.toOpenArray(inIndex + 1, input.len-1), # skip the filterType
+      output.toOpenArray(prevIndex, output.len-1), # prevLine
+      byteWidth, lineBytes, filterType)
+    prevIndex = outIndex

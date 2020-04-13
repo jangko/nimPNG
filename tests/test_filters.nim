@@ -84,14 +84,79 @@ proc testFilterScanline() =
       roundTripFilterP(3, FLT_PAETH)
       roundTripFilterP(4, FLT_PAETH)
 
-    #of LFS_ZERO: filterZero(output, input, w, h, bpp)
+proc checkPixels(a, b: openArray[byte], len: int): bool =
+  result = true
+  for x in 0..<len:
+    if a[x] != b[x]:
+      return false
+
+template roundTripStrategy(bpp: int, strategy: untyped) =
+  block:
+    let
+      lineBytes = (w * bpp + 7) div 8
+      numBytes = h * lineBytes
+
+    strategy(outPix, inPix, w, h, bpp)
+    unfilter(oriPix, outPix, w, h, bpp)
+    check checkPixels(inPix, oriPix, numBytes)
+
+template roundTripZero(bpp: int) =
+  roundTripStrategy(bpp, filterZero)
+
+template roundTripEntropy(bpp: int) =
+  roundTripStrategy(bpp, filterEntropy)
+
+template roundTripPredefined(bpp: int) =
+  block:
+    let
+      lineBytes = (w * bpp + 7) div 8
+      numBytes = h * lineBytes
+
+    filterPredefined(outPix, inPix, w, h, bpp, predefinedFilters)
+    unfilter(oriPix, outPix, w, h, bpp)
+    check checkPixels(inPix, oriPix, numBytes)
+
+proc testFilterStrategies() =
+  suite "Filter Strategies":
+    let
+      h = 128
+      w = 128
+      bpp = 32 # we use largest bpp to avoid reallocation
+      lineBytes = (w * bpp + 7) div 8
+      numBytes = h * lineBytes
+      inPix = randList(byte, rng(0, 255), numBytes, unique = false)
+      outBytes = h * (lineBytes + 1) # lineBytes + filterType
+      byteFilter = randList(byte, rng(0, 4), h, unique = false)
+
+    var
+      outPix = newSeq[byte](outBytes)
+      oriPix = newSeq[byte](numBytes)
+
+    test "LFS_ZERO":
+      roundTripZero(8)
+      roundTripZero(16)
+      roundTripZero(24)
+      roundTripZero(32)
+
+    test "LFS_PREDEFINED":
+      var predefinedFilters = newSeq[PNG_FILTER](h)
+      for i in 0..<h: predefinedFilters[i] = byteFilter[i].PNGFilter
+      roundTripPredefined(8)
+      roundTripPredefined(16)
+      roundTripPredefined(24)
+      roundTripPredefined(32)
+
+    test "LFS_ENTROPY":
+      roundTripEntropy(8)
+      roundTripEntropy(16)
+      roundTripEntropy(24)
+      roundTripEntropy(32)
+
     #of LFS_MINSUM: filterMinsum(output, input, w, h, bpp)
-    #of LFS_ENTROPY: filterEntropy(output, input, w, h, bpp)
     #of LFS_BRUTE_FORCE: filterBruteForce(output, input, w, h, bpp)
-    #of LFS_PREDEFINED: filterPredefined(output, input, w, h, bpp, state)
 
 proc main() =
   testFilterScanline()
+  testFilterStrategies()
 
 main()
-
