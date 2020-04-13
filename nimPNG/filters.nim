@@ -1,4 +1,4 @@
-import math
+import math, ../nimPNG/nimz
 
 type
   PNGFilter* = enum
@@ -101,55 +101,64 @@ proc filterZero*(output: var openArray[byte], input: openArray[byte], w, h, bpp:
       input.toOpenArray(prevIndex, input.len-1),
       byteWidth, lineBytes, FLT_NONE)
     prevIndex = inIndex
-    
-#[
+
+
 proc filterMinsum*(output: var openArray[byte], input: openArray[byte], w, h, bpp: int) =
   let lineBytes = (w * bpp + 7) div 8
   let byteWidth = (bpp + 7) div 8
 
   #adaptive filtering
-  var sum = [0, 0, 0, 0, 0]
-  var smallest = 0
-
-  #five filtering attempts, one for each filter type
-  var attempt: array[0..4, string]
-  var bestType = 0
-  var prevLine: DataBuf
+  var
+    sum = [0, 0, 0, 0, 0]
+    smallest = 0
+    # five filtering attempts, one for each filter type
+    attempt: array[0..4, seq[byte]]
+    bestType = 0
+    prevIndex = 0
 
   for i in 0..attempt.high:
-    attempt[i] = newString(lineBytes)
+    attempt[i] = newSeq[byte](lineBytes)
 
-  for y in 0..h-1:
-    #try the 5 filter types
+  for y in 0..<h:
+    # try the 5 filter types
+    let inIndex = y * lineBytes
     for fType in 0..4:
-      var outp = initBuffer(attempt[fType])
-      filterScanline(outp, input.subbuffer(y * lineBytes), prevLine, lineBytes, byteWidth, PNGFilter0(fType))
-      #calculate the sum of the result
+
+      if y == 0:
+        filterScanline(attempt[fType],
+          input.toOpenArray(inIndex, input.len-1),
+          byteWidth, lineBytes, PNGFilter(fType))
+      else:
+        filterScanline(attempt[fType],
+          input.toOpenArray(inIndex, input.len-1),
+          input.toOpenArray(prevIndex, input.len-1),
+          byteWidth, lineBytes, PNGFilter(fType))
+
+      # calculate the sum of the result
       sum[fType] = 0
       if fType == 0:
         for x in 0..lineBytes-1:
-          sum[fType] += ord(attempt[fType][x])
+          sum[fType] += int(attempt[fType][x])
       else:
         for x in 0..lineBytes-1:
-          #For differences, each byte should be treated as signed, values above 127 are negative
-          #(converted to signed char). Filtertype 0 isn't a difference though, so use unsigned there.
-          #This means filtertype 0 is almost never chosen, but that is justified.
-          let s = ord(attempt[fType][x])
+          # For differences, each byte should be treated as signed, values above 127 are negative
+          # (converted to signed char). Filtertype 0 isn't a difference though, so use unsigned there.
+          # This means filtertype 0 is almost never chosen, but that is justified.
+          let s = int(attempt[fType][x])
           if s < 128: sum[fType] += s
           else: sum[fType] += (255 - s)
 
-      #check if this is smallest sum (or if type == 0 it's the first case so always store the values)*/
+      # check if this is smallest sum (or if type == 0 it's the first case so always store the values)
       if(fType == 0) or (sum[fType] < smallest):
         bestType = fType
         smallest = sum[fType]
 
-    prevLine = input.subbuffer(y * lineBytes)
-    #now fill the out values
-    #the first byte of a input will be the filter type
+    prevIndex = inIndex
+    # now fill the out values
+    # the first byte of a input will be the filter type
     output[y * (lineBytes + 1)] = byte(bestType)
     for x in 0..lineBytes-1:
       output[y * (lineBytes + 1) + 1 + x] = attempt[bestType][x]
-]#
 
 proc filterEntropy*(output: var openArray[byte], input: openArray[byte], w, h, bpp: int) =
   let lineBytes = (w * bpp + 7) div 8
@@ -227,38 +236,46 @@ proc filterPredefined*(output: var openArray[byte], input: openArray[byte],
       byteWidth, lineBytes, PNGFilter(fType))
     prevIndex = inIndex
 
-#[
-proc filterBruteForce(output: var DataBuf, input: DataBuf, w, h, bpp: int) =
+proc filterBruteForce*(output: var openArray[byte], input: openArray[byte], w, h, bpp: int) =
   let lineBytes = (w * bpp + 7) div 8
   let byteWidth = (bpp + 7) div 8
-  var prevLine: DataBuf
 
-  #brute force filter chooser.
-  #deflate the input after every filter attempt to see which one deflates best.
-  #This is very slow and gives only slightly smaller, sometimes even larger, result*/
+  # brute force filter chooser.
+  # deflate the input after every filter attempt to see which one deflates best.
+  # This is very slow and gives only slightly smaller, sometimes even larger, result*/
 
-  var size: array[0..4, int]
-  var attempt: array[0..4, string] #five filtering attempts, one for each filter type
-  var smallest = 0
-  var bestType = 0
+  var
+    size: array[0..4, int]
+    # five filtering attempts, one for each filter type
+    attempt: array[0..4, seq[byte]]
+    smallest = 0
+    bestType = 0
+    prevIndex = 0
 
-  #use fixed tree on the attempts so that the tree is not adapted to the filtertype on purpose,
-  #to simulate the true case where the tree is the same for the whole image. Sometimes it gives
-  #better result with dynamic tree anyway. Using the fixed tree sometimes gives worse, but in rare
-  #cases better compression. It does make this a bit less slow, so it's worth doing this.
+  # use fixed tree on the attempts so that the tree is not adapted to the filtertype on purpose,
+  # to simulate the true case where the tree is the same for the whole image. Sometimes it gives
+  # better result with dynamic tree anyway. Using the fixed tree sometimes gives worse, but in rare
+  # cases better compression. It does make this a bit less slow, so it's worth doing this.
 
   for i in 0..attempt.high:
-    attempt[i] = newString(lineBytes)
+    attempt[i] = newSeq[byte](lineBytes)
 
   for y in 0..h-1:
-    #try the 5 filter types
+    # try the 5 filter types
+    let inIndex = y * lineBytes
     for fType in 0..4:
-      #let testSize = attempt[fType].len
-      var outp = initBuffer(attempt[fType])
-      filterScanline(outp, input.subbuffer(y * lineBytes), prevLine, lineBytes, byteWidth, PNGFilter0(fType))
-      size[fType] = 0
+      if y == 0:
+        filterScanline(attempt[fType],
+          input.toOpenArray(inIndex, input.len-1),
+          byteWidth, lineBytes, PNGFilter(fType))
+      else:
+        filterScanline(attempt[fType],
+          input.toOpenArray(inIndex, input.len-1),
+          input.toOpenArray(prevIndex, input.len-1),
+          byteWidth, lineBytes, PNGFilter(fType))
 
-      var nz = nzDeflateInit(attempt[fType])
+      size[fType] = 0
+      var nz = nzCompressInit(attempt[fType])
       let data = zlib_compress(nz)
       size[fType] = data.len
 
@@ -267,11 +284,10 @@ proc filterBruteForce(output: var DataBuf, input: DataBuf, w, h, bpp: int) =
         bestType = fType
         smallest = size[fType]
 
-    prevLine = input.subbuffer(y * lineBytes)
-    output[y * (lineBytes + 1)] = byte(bestType) #the first byte of a input will be the filter type
+    prevIndex = inIndex
+    output[y * (lineBytes + 1)] = byte(bestType) # the first byte of a input will be the filter type
     for x in 0..lineBytes-1:
       output[y * (lineBytes + 1) + 1 + x] = attempt[bestType][x]
-]#
 
 proc unfilterScanline*(output: var openArray[byte], input: openArray[byte], byteWidth, len: int, filterType: PNGFilter) =
   # When the pixels are smaller than 1 byte, the filter works byte per byte (byteWidth = 1)

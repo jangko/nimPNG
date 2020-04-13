@@ -106,6 +106,12 @@ template roundTripZero(bpp: int) =
 template roundTripEntropy(bpp: int) =
   roundTripStrategy(bpp, filterEntropy)
 
+template roundTripMinsum(bpp: int) =
+  roundTripStrategy(bpp, filterMinsum)
+
+template roundTripBruteforce(bpp: int) =
+  roundTripStrategy(bpp, filterBruteforce)
+
 template roundTripPredefined(bpp: int) =
   block:
     let
@@ -152,8 +158,17 @@ proc testFilterStrategies() =
       roundTripEntropy(24)
       roundTripEntropy(32)
 
-    #of LFS_MINSUM: filterMinsum(output, input, w, h, bpp)
-    #of LFS_BRUTE_FORCE: filterBruteForce(output, input, w, h, bpp)
+    test "LFS_MINSUM":
+      roundTripMinsum(8)
+      roundTripMinsum(16)
+      roundTripMinsum(24)
+      roundTripMinsum(32)
+
+    test "LFS_BRUTEFORCE":
+      roundTripBruteforce(8)
+      roundTripBruteforce(16)
+      roundTripBruteforce(24)
+      roundTripBruteforce(32)
 
 proc main() =
   testFilterScanline()

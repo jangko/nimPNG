@@ -1,4 +1,4 @@
-import streams, sequtils, algorithm, strutils
+import sequtils
 
 const
   FIRST_LENGTH_CODE_INDEX = 257
@@ -1223,6 +1223,9 @@ proc nzDeflateInit*(input: string): nzStream =
 
 template nzCompressInit*(input: string): nzStream =
   nzDeflateInit(input)
+
+template nzCompressInit*(input: seq[byte]): nzStream =
+  nzDeflateInit(cast[string](input))
 
 proc nzInflateInit*(input: string): nzStream =
   var nz = nzInit()
