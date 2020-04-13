@@ -41,7 +41,7 @@ type
     LCT_GREY_ALPHA = 4, # greyscale with alpha: 8,16 bit
     LCT_RGBA = 6        # RGB with alpha: 8,16 bit
 
-  PNGFilter0 = enum
+  PNGFilter* = enum
     FLT_NONE,
     FLT_SUB,
     FLT_UP,
@@ -976,7 +976,7 @@ proc addColorBits(output: var DataBuf, index, bits, input: int) =
   if p == 0: output[idx] = chr(val)
   else: output[idx] = chr(ord(output[idx]) or val)
 
-proc unfilterScanLine(recon: var DataBuf, scanLine, precon: DataBuf, byteWidth, len: int, filterType: PNGFilter0) =
+proc unfilterScanLine(recon: var DataBuf, scanLine, precon: DataBuf, byteWidth, len: int, filterType: PNGFilter) =
   # For PNG filter method 0
   # unfilter a PNG image scanLine by scanLine. when the pixels are smaller than 1 byte,
   # the filter works byte per byte (byteWidth = 1)
@@ -1033,7 +1033,7 @@ proc unfilter(output: var DataBuf, input: DataBuf, w, h, bpp: int) =
   for y in 0..h-1:
     let outIndex = lineBytes * y
     let inIndex = (1 + lineBytes) * y # the extra filterbyte added to each row
-    let filterType = PNGFilter0(input[inindex])
+    let filterType = PNGFilter(input[inindex])
     let scanLine = input.subbuffer(inIndex + 1)
     var outp = output.subbuffer(outIndex)
     unfilterScanLine(outp, scanLine, prevLine, byteWidth, lineBytes, filterType)
@@ -2101,7 +2101,7 @@ type
     #used if filter_strategy is LFS_PREDEFINED. In that case, this must point to a buffer with
     #the same length as the amount of scanLines in the image, and each value must <= 5.
     #Don't forget that filter_palette_zero must be set to false to ensure this is also used on palette or low bitdepth images.
-    predefinedFilters*: string
+    predefinedFilters*: seq[PNGFilter]
 
     #force creating a PLTE chunk if colorType is 2 or 6 (= a suggested palette).
     #If colorType is 3, PLTE is _always_ created.
@@ -2153,7 +2153,7 @@ proc makePNGEncoder*(): PNGEncoder =
   s.modeIn = newColorMode()
   s.modeOut = newColorMode()
   s.forcePalette = false
-  s.predefinedFilters = ""
+  s.predefinedFilters = @[]
   s.addID = false
   s.textCompression = true
   s.interlaceMethod = IM_NONE
@@ -2675,7 +2675,7 @@ proc addPaddingBits(output: var DataBuf, input: DataBuf, olinebits, ilinebits, h
       setBitOfReversedStream(obp, output, bit)
     for x in 0..diff-1: setBitOfReversedStream(obp, output, 0)
 
-proc filterScanLine(output: var DataBuf, scanLine, prevLine: DataBuf, len, byteWidth: int, filterType: PNGFilter0) =
+proc filterScanLine(output: var DataBuf, scanLine, prevLine: DataBuf, len, byteWidth: int, filterType: PNGFilter) =
   case filterType
   of FLT_NONE:
     for i in 0..len-1: output[i] = scanLine[i]
@@ -2748,7 +2748,7 @@ proc filterMinsum(output: var DataBuf, input: DataBuf, w, h, bpp: int) =
     #try the 5 filter types
     for fType in 0..4:
       var outp = initBuffer(attempt[fType])
-      filterScanLine(outp, input.subbuffer(y * lineBytes), prevLine, lineBytes, byteWidth, PNGFilter0(fType))
+      filterScanLine(outp, input.subbuffer(y * lineBytes), prevLine, lineBytes, byteWidth, PNGFilter(fType))
       #calculate the sum of the result
       sum[fType] = 0
       if fType == 0:
@@ -2793,7 +2793,7 @@ proc filterEntropy(output: var DataBuf, input: DataBuf, w, h, bpp: int) =
     #try the 5 filter types
     for fType in 0..4:
       var outp = initBuffer(attempt[fType])
-      filterScanLine(outp, input.subbuffer(y * lineBytes), prevLine, lineBytes, byteWidth, PNGFilter0(fType))
+      filterScanLine(outp, input.subbuffer(y * lineBytes), prevLine, lineBytes, byteWidth, PNGFilter(fType))
       for x in 0..255: count[x] = 0
       for x in 0..lineBytes-1:
         inc count[ord(attempt[fType][x])]
@@ -2826,7 +2826,7 @@ proc filterPredefined(output: var DataBuf, input: DataBuf, w, h, bpp: int, state
     let fType = ord(state.predefinedFilters[y])
     output[outindex] = chr(fType) #filter type byte
     var outp = output.subbuffer(outindex + 1)
-    filterScanLine(outp, input.subbuffer(inindex), prevLine, lineBytes, byteWidth, PNGFilter0(fType))
+    filterScanLine(outp, input.subbuffer(inindex), prevLine, lineBytes, byteWidth, PNGFilter(fType))
     prevLine = input.subbuffer(inindex)
 
 proc filterBruteForce(output: var DataBuf, input: DataBuf, w, h, bpp: int) =
@@ -2856,7 +2856,7 @@ proc filterBruteForce(output: var DataBuf, input: DataBuf, w, h, bpp: int) =
     for fType in 0..4:
       #let testSize = attempt[fType].len
       var outp = initBuffer(attempt[fType])
-      filterScanline(outp, input.subbuffer(y * lineBytes), prevLine, lineBytes, byteWidth, PNGFilter0(fType))
+      filterScanline(outp, input.subbuffer(y * lineBytes), prevLine, lineBytes, byteWidth, PNGFilter(fType))
       size[fType] = 0
 
       var nz = nzDeflateInit(attempt[fType])
@@ -3385,24 +3385,24 @@ when not defined(js):
       debugEcho getCurrentExceptionMsg()
       result = false
 
-proc getFilterTypesInterlaced(png: PNG): seq[string] =
+proc getFilterTypesInterlaced(png: PNG): seq[seq[PNGFilter]] =
   var header = PNGHeader(png.getChunk(IHDR))
   var idat = PNGData(png.getChunk(IDAT))
 
   if header.interlaceMethod == IM_NONE:
-    result = newSeq[string](1)
-    result[0] = ""
+    result = newSeq[seq[PNGFilter]](1)
+    result[0] = @[]
 
     #A line is 1 filter byte + all pixels
     let lineBytes = 1 + idatRawSize(header.width, 1, header)
     var i = 0
     while i < idat.idat.len:
-      result[0].add idat.idat[i]
+      result[0].add PNGFilter(idat.idat[i].int)
       inc(i, lineBytes)
   else:
-    result = newSeq[string](7)
+    result = newSeq[seq[PNGFilter]](7)
     for j in 0..6:
-      result[j] = ""
+      result[j] = @[]
       var w2 = (header.width - ADAM7_IX[j] + ADAM7_DX[j] - 1) div ADAM7_DX[j]
       var h2 = (header.height - ADAM7_IY[j] + ADAM7_DY[j] - 1) div ADAM7_DY[j]
       if(ADAM7_IX[j] >= header.width) or (ADAM7_IY[j] >= header.height):
@@ -3412,10 +3412,10 @@ proc getFilterTypesInterlaced(png: PNG): seq[string] =
       let lineBytes = 1 + idatRawSize(w2, 1, header)
       var pos = 0
       for i in 0..h2-1:
-        result[j].add idat.idat[pos]
+        result[j].add PNGFilter(idat.idat[pos].int)
         inc(pos, linebytes)
 
-proc getFilterTypes*(png: PNG): string =
+proc getFilterTypes*(png: PNG): seq[PNGFilter] =
   var passes = getFilterTypesInterlaced(png)
 
   if passes.len == 1:
@@ -3425,7 +3425,7 @@ proc getFilterTypes*(png: PNG): string =
     #Interlaced. Simplify it: put pass 6 and 7 alternating in the one vector so
     #that one filter per scanline of the uninterlaced image is given, with that
     #filter corresponding the closest to what it would be for non-interlaced image.
-    result = ""
+    result = @[]
     for i in 0..header.height-1:
       if (i mod 2) == 0: result.add passes[5][i div 2]
       else: result.add passes[6][i div 2]

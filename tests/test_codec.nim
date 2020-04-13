@@ -438,7 +438,7 @@ proc testPaletteFilterTypesZero() =
 
   assertEquals(17, filterTypes.len)
   for i in 0..16:
-    assertEquals(0.chr, filterTypes[i])
+    assertEquals(FLT_NONE, filterTypes[i])
 
 proc testComplexPNG() =
   echo "testComplexPNG"
@@ -485,13 +485,18 @@ proc testPredefinedFilters() =
   var state = makePNGEncoder()
   state.filterStrategy = LFS_PREDEFINED
   state.filterPaletteZero = false
-  state.predefinedFilters = repeat(chr(3), h) #everything to filter type '3'
+  
+  # everything to filter type 'FLT_AVERAGE'
+  state.predefinedFilters = newSeq[PNGFilter](h)
+  for i in 0..<h:
+    state.predefinedFilters[i] = FLT_AVERAGE
+    
   var png = encodePNG(image.data, w, h, state)
   var outFilters = png.getFilterTypes()
 
   assertEquals(h, outFilters.len)
   for i in 0..<h:
-    assertEquals(chr(3), outFilters[i])
+    assertEquals(FLT_AVERAGE, outFilters[i])
 
 # Tests combinations of various colors in different orders
 proc testFewColors() =
@@ -1193,5 +1198,5 @@ proc doMain() =
   testNoAutoConvert()
   testAutoColorModels()
   testFilter()
-
+ 
 doMain()
