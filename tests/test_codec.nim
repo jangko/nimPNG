@@ -1,5 +1,5 @@
-import nimPNG, streams, math, strutils, tables, base64, os
-import nimPNG/buffer
+import ../nimPNG, streams, math, strutils, tables, base64, os
+import ../nimPNG/buffer
 
 type
   Image = ref object
@@ -1015,9 +1015,9 @@ proc testFilter() =
   echo "test Filter"
   let input = "tfilter.png"
   let temp = "temp.png"
-  let png = loadPNG32(input)
-  discard savePNG32(temp, png.data, png.width, png.height)
-  let png2 = loadPNG32(temp)
+  let png = loadPNG32("tests" / "misc" / input)
+  discard savePNG32("tests" / "misc" / temp, png.data, png.width, png.height)
+  let png2 = loadPNG32("tests" / "misc" / temp)
   if png.data != png2.data:
     echo "testFilter failed"
     quit()
