@@ -25,14 +25,11 @@ proc toBMP(png: PNGResult, fileName: string) =
           bmp.data[px + 2] = chr(uint8(255) + uint8((((x.data[px4 + 0].uint - 255'u) * alpha) shr 8) and 0xFF))
 
       let bmpName = fileName & "_" & $frame & ".bmp"
-      #var s = newFileStream(bmpName, fmWrite)
-      #s.write(bmp)
-      #s.close()
 
       let data1 = bmp.write()
       let data2 = readFile(bmpName)
       assert data1 == data2
-      echo "frame $1 of $2" % [$(frame + 1), $png.frames.len]
+      echo "frame $1 of $2 vs. $3" % [$(frame + 1), $png.frames.len, bmpName]
 
       inc frame
 
