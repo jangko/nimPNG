@@ -1,5 +1,5 @@
 import ../nimPNG, streams, math, strutils, tables, base64, os
-import ../nimPNG/buffer
+import ../nimPNG/[buffer, filters]
 
 type
   Image = ref object
@@ -485,12 +485,12 @@ proc testPredefinedFilters() =
   var state = makePNGEncoder()
   state.filterStrategy = LFS_PREDEFINED
   state.filterPaletteZero = false
-  
+
   # everything to filter type 'FLT_AVERAGE'
   state.predefinedFilters = newSeq[PNGFilter](h)
   for i in 0..<h:
     state.predefinedFilters[i] = FLT_AVERAGE
-    
+
   var png = encodePNG(image.data, w, h, state)
   var outFilters = png.getFilterTypes()
 
@@ -591,12 +591,15 @@ proc colorConvertTest(bits_in: string, colorType_in: PNGcolorType, bitDepth_in: 
 
   echo "color convert test ", bits_in, " - ", bits_out
   let expected = bitStringToBytes(bits_out)
-  let image = initBuffer(bitStringToBytes(bits_in))
+  let image = bitStringToBytes(bits_in)
   let modeIn = newColorMode(colorType_in, bitDepth_in)
   let modeOut = newColorMode(colorType_out, bitDepth_out)
   var actual = newString(expected.len)
-  var actualView = initBuffer(actual)
-  convert(actualView, image, modeOut, modeIn, 1)
+  convert(
+    actual.toOpenArray(0, actual.len-1),
+    image.toOpenArray(0, image.len-1),
+    modeOut, modeIn, 1)
+
   for i in 0..expected.high:
     assertEquals(expected[i].int, actual[i].int, "byte " & $i)
 
@@ -674,19 +677,19 @@ proc testColorConvert2() =
       (colorType: LCT_RGBA, bitDepth: 8),
       (colorType: LCT_RGBA, bitDepth: 16)]
 
-    eight = initBuffer([0,0,0,255, 255,255,255,255,
+    eight = [0,0,0,255, 255,255,255,255,
       0,0,0,255, 255,255,255,255,
       255,255,255,255, 0,0,0,255,
       255,255,255,255, 255,255,255,255,
-      0,0,0,255].toString()) #input in RGBA8
+      0,0,0,255].toString() #input in RGBA8
 
   var
     modeIn = newColorMode()
     modeOut = newColorMode()
     mode_8 = newColorMode()
-    input = initBuffer(newString(72))
-    output = initBuffer(newString(72))
-    eight2 = initBuffer(newString(36))
+    input = newString(72)
+    output = newString(72)
+    eight2 = newString(36)
 
   for i in 0..255:
     let j = if i == 1: 255 else: i
@@ -701,10 +704,10 @@ proc testColorConvert2() =
       modeOut.colorType = cmb.colorType
       modeOut.bitDepth = cmb.bitDepth
 
-      convert(input, eight, modeIn, mode_8, 3 * 3)
-      convert(output, input, modeOut, modeIn, 3 * 3) #Test input to output type
-      convert(eight2, output, mode_8, modeOut, 3 * 3)
-      assertEquals(eight.data, eight2.data)
+      convert(input.toOpenArray(0, input.len-1), eight.toOpenArray(0, eight.len-1), modeIn, mode_8, 3 * 3)
+      convert(output.toOpenArray(0, output.len-1), input.toOpenArray(0, input.len-1), modeOut, modeIn, 3 * 3) #Test input to output type
+      convert(eight2.toOpenArray(0, eight2.len-1), output.toOpenArray(0, output.len-1), mode_8, modeOut, 3 * 3)
+      assertEquals(eight, eight2)
 
 #tests that there are no crashes with auto color chooser in case of palettes with translucency etc...
 proc testPaletteToPaletteConvert() =
@@ -1198,5 +1201,5 @@ proc doMain() =
   testNoAutoConvert()
   testAutoColorModels()
   testFilter()
- 
+
 doMain()

@@ -14,10 +14,10 @@ type
 
 const
   # shared values used by multiple Adam7 related functions
-  ADAM7_IX = [ 0, 4, 0, 2, 0, 1, 0 ] # x start values
-  ADAM7_IY = [ 0, 0, 4, 0, 2, 0, 1 ] # y start values
-  ADAM7_DX = [ 8, 8, 4, 4, 2, 2, 1 ] # x delta values
-  ADAM7_DY = [ 8, 8, 8, 4, 4, 2, 2 ] # y delta values
+  ADAM7_IX* = [ 0, 4, 0, 2, 0, 1, 0 ] # x start values
+  ADAM7_IY* = [ 0, 0, 4, 0, 2, 0, 1 ] # y start values
+  ADAM7_DX* = [ 8, 8, 4, 4, 2, 2, 1 ] # x delta values
+  ADAM7_DY* = [ 8, 8, 8, 4, 4, 2, 2 ] # y delta values
 
 # Paeth predicter, used by PNG filter type 4
 proc paethPredictor(a, b, c: int): uint =
@@ -400,11 +400,11 @@ proc unfilter*[T](output: var openArray[T], input: openArray[T], w, h, bpp: int)
       TWidth, lineTs, filterType)
     prevIndex = outIndex
 
-proc readBitFromReversedStream[T](bitptr: var int, bitstream: openArray[T]): int =
+proc readBitFromReversedStream*[T](bitptr: var int, bitstream: openArray[T]): int =
   result = ((int(bitstream[bitptr shr 3]) shr (7 - (bitptr and 0x7))) and 1)
   inc bitptr
 
-proc readBitsFromReversedStream[T](bitptr: var int, bitstream: openArray[T], nbits: int): int =
+proc readBitsFromReversedStream*[T](bitptr: var int, bitstream: openArray[T], nbits: int): int =
   result = 0
   var i = nbits - 1
   while i > -1:
@@ -417,20 +417,20 @@ proc `&=`[T](a: var T, b: T) =
 proc `|=`[T](a: var T, b: T) =
   a = T(int(a) or int(b))
 
-proc setBitOfReversedStream0[T](bitptr: var int, bitstream: var openArray[T], bit: int) =
+proc setBitOfReversedStream0*[T](bitptr: var int, bitstream: var openArray[T], bit: int) =
   # the current bit in bitstream must be 0 for this to work
   if bit != 0:
     # earlier bit of huffman code is in a lesser significant bit of an earlier T
-    bitstream[bitptr shr 3] |= T(bit shl (7 - (bitptr and 0x7)))
+    bitstream[bitptr shr 3] |= cast[T](bit shl (7 - (bitptr and 0x7)))
   inc bitptr
 
-proc setBitOfReversedStream[T](bitptr: var int, bitstream: var openArray[T], bit: int) =
+proc setBitOfReversedStream*[T](bitptr: var int, bitstream: var openArray[T], bit: int) =
   # the current bit in bitstream may be 0 or 1 for this to work
-  if bit == 0: bitstream[bitptr shr 3] &= T(not (1 shl (7 - (bitptr and 0x7))))
-  else: bitstream[bitptr shr 3] |= T(1 shl (7 - (bitptr and 0x7)))
+  if bit == 0: bitstream[bitptr shr 3] &= cast[T](not (1 shl (7 - (bitptr and 0x7))))
+  else: bitstream[bitptr shr 3] |= cast[T](1 shl (7 - (bitptr and 0x7)))
   inc bitptr
 
-proc removePaddingBits[T](output: var openArray[T], input: openArray[T], olinebits, ilinebits, h: int) =
+proc removePaddingBits*[T](output: var openArray[T], input: openArray[T], olinebits, ilinebits, h: int) =
   # After filtering there are still padding bits if scanLines have non multiple of 8 bit amounts. They need
   # to be removed (except at last scanLine of (Adam7-reduced) image) before working with pure image buffers
   # for the Adam7 code, the color convert code and the output to the user.
@@ -462,7 +462,7 @@ proc removePaddingBits[T](output: var openArray[T], input: openArray[T], olinebi
 # bpp: bits per pixel
 # "padded" is only relevant if bpp is less than 8 and a scanLine or image does not
 # end at a full T
-proc adam7PassValues(pass: var PNGPass, w, h, bpp: int) =
+proc adam7PassValues*(pass: var PNGPass, w, h, bpp: int) =
   # the passstart values have 8 values:
   # the 8th one indicates the T after the end of the 7th (= last) pass
 
@@ -554,3 +554,32 @@ proc adam7Interlace*[T](output: var openArray[T], input: openArray[T], w, h, bpp
           for b in 0..<bpp:
             let bit = readBitFromReversedStream(ibp, input)
             setBitOfReversedStream(obp, output, bit)
+
+# index: bitgroup index, bits: bitgroup size(1, 2 or 4), in: bitgroup value, out: octet array to add bits to
+proc addColorBits*[T](output: var openArray[T], index, bits, input: int) =
+  var m = 1
+  if bits == 1: m = 7
+  elif bits == 2: m = 3
+  # p = the partial index in the byte, e.g. with 4 palettebits it is 0 for first half or 1 for second half
+  let p = index and m
+
+  var val = input and ((1 shl bits) - 1) # filter out any other bits of the input value
+  val = val shl (bits * (m - p))
+  let idx = index * bits div 8
+  if p == 0: output[idx] = T(val)
+  else: output[idx] = T(int(output[idx]) or val)
+
+proc addPaddingBits*[T](output: var openArray[T], input: openArray[T], olinebits, ilinebits, h: int) =
+  #The opposite of the removePaddingBits function
+  #olinebits must be >= ilinebits
+
+  let diff = olinebits - ilinebits
+  var
+    obp = 0
+    ibp = 0 #bit pointers
+
+  for y in 0..h-1:
+    for x in 0..ilinebits-1:
+      let bit = readBitFromReversedStream(ibp, input)
+      setBitOfReversedStream(obp, output, bit)
+    for x in 0..diff-1: setBitOfReversedStream(obp, output, 0)
