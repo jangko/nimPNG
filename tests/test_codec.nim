@@ -67,8 +67,14 @@ proc doCodecTest(image: Image, state: PNGEncoder) =
   #if image.data.len > 512:
     #assertTrue(s.data.len < image.data.len, "compressed size")
 
+  #debugEcho "PNG LEN: ", s.getPosition()
+  #debugEcho "PNG DATA: ", s.data.toHex
+
   s.setPosition 0
   var decoded = s.decodePNG(image.colorType, image.bitDepth)
+
+  #debugEcho "DECODED LEN: ", decoded.data.len
+  #debugEcho "DECODED DATA: ", decoded.data.toHex
 
   assertEquals(image.width, decoded.width)
   assertEquals(image.height, decoded.height)

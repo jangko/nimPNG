@@ -29,77 +29,77 @@ proc paethPredictor(a, b, c: int): uint =
   elif pb < pa: return b.uint
   result = a.uint
 
-proc filterScanline*[T](output: var openArray[T], input: openArray[T], TWidth, len: int, filterType: PNGFilter) =
+proc filterScanline*[T](output: var openArray[T], input: openArray[T], byteWidth, len: int, filterType: PNGFilter) =
   template currPix: untyped = input[i].uint
-  template prevPix: untyped = input[i - TWidth].uint
+  template prevPix: untyped = input[i - byteWidth].uint
 
   case filterType
   of FLT_NONE:
     for i in 0..<len:
       output[i] = input[i]
   of FLT_SUB:
-    for i in 0..<TWidth:
+    for i in 0..<byteWidth:
       output[i] = input[i]
-    for i in TWidth..<len:
+    for i in byteWidth..<len:
       output[i] = T((currPix - prevPix) and 0xFF)
   of FLT_UP:
     for i in 0..<len:
       output[i] = input[i]
   of FLT_AVERAGE:
-    for i in 0..<TWidth:
+    for i in 0..<byteWidth:
       output[i] = input[i]
-    for i in TWidth..<len:
+    for i in byteWidth..<len:
       output[i] = T((currPix - (prevPix div 2)) and 0xFF)
   of FLT_PAETH:
-    for i in 0..<TWidth:
+    for i in 0..<byteWidth:
       output[i] = input[i]
     # paethPredictor(prevPix, 0, 0) is always prevPix
-    for i in TWidth..<len:
+    for i in byteWidth..<len:
       output[i] = T((currPix - prevPix) and 0xFF)
 
-proc filterScanline*[T](output: var openArray[T], input, prevLine: openArray[T], TWidth, len: int, filterType: PNGFilter) =
+proc filterScanline*[T](output: var openArray[T], input, prevLine: openArray[T], byteWidth, len: int, filterType: PNGFilter) =
   template currPix: untyped = input[i].uint
-  template prevPix: untyped = input[i - TWidth].uint
+  template prevPix: untyped = input[i - byteWidth].uint
   template upPix: untyped = prevLine[i].uint
-  template prevPixI: untyped = input[i - TWidth].int
+  template prevPixI: untyped = input[i - byteWidth].int
   template upPixI: untyped = prevLine[i].int
-  template prevUpPix: untyped = prevLine[i - TWidth].int
+  template prevUpPix: untyped = prevLine[i - byteWidth].int
 
   case filterType
   of FLT_NONE:
     for i in 0..<len:
       output[i] = input[i]
   of FLT_SUB:
-    for i in 0..<TWidth:
+    for i in 0..<byteWidth:
       output[i] = input[i]
-    for i in TWidth..<len:
+    for i in byteWidth..<len:
       output[i] = T((currPix - prevPix) and 0xFF)
   of FLT_UP:
     for i in 0..<len:
       output[i] = T((currPix - upPix) and 0xFF)
   of FLT_AVERAGE:
-    for i in 0..<TWidth:
+    for i in 0..<byteWidth:
       output[i] = T((currPix - (upPix div 2)) and 0xFF)
-    for i in TWidth..<len:
+    for i in byteWidth..<len:
       output[i] = T((currPix - ((prevPix + upPix) div 2)) and 0xFF)
   of FLT_PAETH:
     # paethPredictor(0, upPix, 0) is always upPix
-    for i in 0..<TWidth:
+    for i in 0..<byteWidth:
       output[i] = T((currPix - upPix) and 0xFF)
-    for i in TWidth..<len:
+    for i in byteWidth..<len:
       output[i] = T((currPix - paethPredictor(prevPixI, upPixI, prevUpPix)) and 0xFF)
 
 proc filterZero*[T](output: var openArray[T], input: openArray[T], w, h, bpp: int) =
   # the width of a input in Ts, not including the filter type
   let lineTs = (w * bpp + 7) div 8
-  # TWidth is used for filtering, is 1 when bpp < 8, number of Ts per pixel otherwise
-  let TWidth = (bpp + 7) div 8
+  # byteWidth is used for filtering, is 1 when bpp < 8, number of Ts per pixel otherwise
+  let byteWidth = (bpp + 7) div 8
 
   # line 0
   if h > 0:
     output[0] = T(FLT_NONE) # filterType T
     filterScanline(output.toOpenArray(1, output.len-1), # skip filterType
-      input, TWidth, lineTs, FLT_NONE)
+      input, byteWidth, lineTs, FLT_NONE)
 
   # next line start from 1
   var prevIndex = 0
@@ -110,12 +110,12 @@ proc filterZero*[T](output: var openArray[T], input: openArray[T], w, h, bpp: in
     filterScanline(output.toOpenArray(outIndex + 1, output.len-1), # skip filterType
       input.toOpenArray(inIndex, input.len-1),
       input.toOpenArray(prevIndex, input.len-1),
-      TWidth, lineTs, FLT_NONE)
+      byteWidth, lineTs, FLT_NONE)
     prevIndex = inIndex
 
 proc filterMinsum*[T](output: var openArray[T], input: openArray[T], w, h, bpp: int) =
   let lineTs = (w * bpp + 7) div 8
-  let TWidth = (bpp + 7) div 8
+  let byteWidth = (bpp + 7) div 8
 
   #adaptive filtering
   var
@@ -137,12 +137,12 @@ proc filterMinsum*[T](output: var openArray[T], input: openArray[T], w, h, bpp: 
       if y == 0:
         filterScanline(attempt[fType],
           input.toOpenArray(inIndex, input.len-1),
-          TWidth, lineTs, PNGFilter(fType))
+          byteWidth, lineTs, PNGFilter(fType))
       else:
         filterScanline(attempt[fType],
           input.toOpenArray(inIndex, input.len-1),
           input.toOpenArray(prevIndex, input.len-1),
-          TWidth, lineTs, PNGFilter(fType))
+          byteWidth, lineTs, PNGFilter(fType))
 
       # calculate the sum of the result
       sum[fType] = 0
@@ -172,7 +172,7 @@ proc filterMinsum*[T](output: var openArray[T], input: openArray[T], w, h, bpp: 
 
 proc filterEntropy*[T](output: var openArray[T], input: openArray[T], w, h, bpp: int) =
   let lineTs = (w * bpp + 7) div 8
-  let TWidth = (bpp + 7) div 8
+  let byteWidth = (bpp + 7) div 8
 
   var
     sum: array[0..4, float]
@@ -192,12 +192,12 @@ proc filterEntropy*[T](output: var openArray[T], input: openArray[T], w, h, bpp:
       if y == 0:
         filterScanline(attempt[fType],
           input.toOpenArray(inIndex, input.len-1),
-          TWidth, lineTs, PNGFilter(fType))
+          byteWidth, lineTs, PNGFilter(fType))
       else:
         filterScanline(attempt[fType],
           input.toOpenArray(inIndex, input.len-1),
           input.toOpenArray(prevIndex, input.len-1),
-          TWidth, lineTs, PNGFilter(fType))
+          byteWidth, lineTs, PNGFilter(fType))
 
       for x in 0..255: count[x] = 0
       for x in 0..lineTs-1:
@@ -225,13 +225,13 @@ proc filterPredefined*[T](output: var openArray[T], input: openArray[T],
   w, h, bpp: int, predefinedFilters: openArray[PNGFilter]) =
 
   let lineTs = (w * bpp + 7) div 8
-  let TWidth = (bpp + 7) div 8
+  let byteWidth = (bpp + 7) div 8
 
   # line 0
   if h > 0:
     output[0] = T(predefinedFilters[0]) # filterType T
     filterScanline(output.toOpenArray(1, output.len-1), # skip filterType
-      input, TWidth, lineTs, predefinedFilters[0])
+      input, byteWidth, lineTs, predefinedFilters[0])
 
   # next line start from 1
   var prevIndex = 0
@@ -243,12 +243,12 @@ proc filterPredefined*[T](output: var openArray[T], input: openArray[T],
     filterScanline(output.toOpenArray(outIndex + 1, output.len-1), # skip filterType
       input.toOpenArray(inIndex, input.len-1),
       input.toOpenArray(prevIndex, input.len-1),
-      TWidth, lineTs, PNGFilter(fType))
+      byteWidth, lineTs, PNGFilter(fType))
     prevIndex = inIndex
 
 proc filterBruteForce*[T](output: var openArray[T], input: openArray[T], w, h, bpp: int) =
   let lineTs = (w * bpp + 7) div 8
-  let TWidth = (bpp + 7) div 8
+  let byteWidth = (bpp + 7) div 8
 
   # brute force filter chooser.
   # deflate the input after every filter attempt to see which one deflates best.
@@ -277,12 +277,12 @@ proc filterBruteForce*[T](output: var openArray[T], input: openArray[T], w, h, b
       if y == 0:
         filterScanline(attempt[fType],
           input.toOpenArray(inIndex, input.len-1),
-          TWidth, lineTs, PNGFilter(fType))
+          byteWidth, lineTs, PNGFilter(fType))
       else:
         filterScanline(attempt[fType],
           input.toOpenArray(inIndex, input.len-1),
           input.toOpenArray(prevIndex, input.len-1),
-          TWidth, lineTs, PNGFilter(fType))
+          byteWidth, lineTs, PNGFilter(fType))
 
       size[fType] = 0
       var nz = nzCompressInit(attempt[fType])
@@ -299,75 +299,75 @@ proc filterBruteForce*[T](output: var openArray[T], input: openArray[T], w, h, b
     for x in 0..lineTs-1:
       output[y * (lineTs + 1) + 1 + x] = attempt[bestType][x]
 
-proc unfilterScanline*[T](output: var openArray[T], input: openArray[T], TWidth, len: int, filterType: PNGFilter) =
-  # When the pixels are smaller than 1 T, the filter works T per T (TWidth = 1)
+proc unfilterScanline*[T](output: var openArray[T], input: openArray[T], byteWidth, len: int, filterType: PNGFilter) =
+  # When the pixels are smaller than 1 T, the filter works T per T (byteWidth = 1)
   # the incoming inputs do NOT include the filtertype T, that one is given in the parameter filterType instead
   # output and input MAY be the same memory address! output must be disjoint.
 
   template currPix: untyped = input[i].uint
-  template prevPix: untyped = output[i - TWidth].uint
+  template prevPix: untyped = output[i - byteWidth].uint
 
   case filterType
   of FLT_NONE:
     for i in 0..<len:
       output[i] = input[i]
   of FLT_SUB:
-    for i in 0..<TWidth:
+    for i in 0..<byteWidth:
       output[i] = input[i]
-    for i in TWidth..<len:
+    for i in byteWidth..<len:
       output[i] = T((currPix + prevPix) and 0xFF)
   of FLT_UP:
     for i in 0..<len:
       output[i] = input[i]
   of FLT_AVERAGE:
-    for i in 0..<TWidth:
+    for i in 0..<byteWidth:
       output[i] = input[i]
-    for i in TWidth..<len:
+    for i in byteWidth..<len:
       output[i] = T((currPix + (prevPix div 2)) and 0xFF)
   of FLT_PAETH:
-    for i in 0..<TWidth:
+    for i in 0..<byteWidth:
       output[i] = input[i]
-    for i in TWidth..<len:
+    for i in byteWidth..<len:
       # paethPredictor(prevPix, 0, 0) is always prevPix
       output[i] = T((currPix + prevPix) and 0xFF)
 
-proc unfilterScanline*[T](output: var openArray[T], input, prevLine: openArray[T], TWidth, len: int, filterType: PNGFilter) =
+proc unfilterScanline*[T](output: var openArray[T], input, prevLine: openArray[T], byteWidth, len: int, filterType: PNGFilter) =
   # For PNG filter method 0
   # unfilter a PNG image input by input. when the pixels are smaller than 1 T,
-  # the filter works T per T (TWidth = 1)
+  # the filter works T per T (byteWidth = 1)
   # prevLine is the previous unfiltered input, output the result, input the current one
   # the incoming inputs do NOT include the filtertype T, that one is given in the parameter filterType instead
   # output and input MAY be the same memory address! prevLine must be disjoint.
 
   template currPix: untyped = input[i].uint
-  template prevPix: untyped = output[i - TWidth].uint
+  template prevPix: untyped = output[i - byteWidth].uint
   template upPix: untyped = prevLine[i].uint
-  template prevPixI: untyped = output[i - TWidth].int
+  template prevPixI: untyped = output[i - byteWidth].int
   template upPixI: untyped = prevLine[i].int
-  template prevUpPix: untyped = prevLine[i - TWidth].int
+  template prevUpPix: untyped = prevLine[i - byteWidth].int
 
   case filterType
   of FLT_NONE:
     for i in 0..<len:
       output[i] = input[i]
   of FLT_SUB:
-    for i in 0..<TWidth:
+    for i in 0..<byteWidth:
       output[i] = input[i]
-    for i in TWidth..<len:
+    for i in byteWidth..<len:
       output[i] = T((currPix + prevPix) and 0xFF)
   of FLT_UP:
     for i in 0..<len:
       output[i] = T((currPix + upPix) and 0xFF)
   of FLT_AVERAGE:
-    for i in 0..<TWidth:
+    for i in 0..<byteWidth:
       output[i] = T((currPix + upPix div 2) and 0xFF)
-    for i in TWidth..<len:
+    for i in byteWidth..<len:
       output[i] = T((currPix + ((prevPix + upPix) div 2)) and 0xFF)
   of FLT_PAETH:
-    for i in 0..<TWidth:
+    for i in 0..<byteWidth:
       # paethPredictor(0, upPix, 0) is always upPix
       output[i] = T((currPix + upPix) and 0xFF)
-    for i in TWidth..<len:
+    for i in byteWidth..<len:
       output[i] = T((currPix + paethPredictor(prevPixI, upPixI, prevUpPix)) and 0xFF)
 
 proc unfilter*[T](output: var openArray[T], input: openArray[T], w, h, bpp: int) =
@@ -377,15 +377,15 @@ proc unfilter*[T](output: var openArray[T], input: openArray[T], w, h, bpp: int)
   # w and h are image dimensions or dimensions of reduced image, bpp is bits per pixel
   # input and output are allowed to be the same memory address (but aren't the same size since in has the extra filter Ts)
 
-  # TWidth is used for filtering, is 1 when bpp < 8, number of Ts per pixel otherwise
-  let TWidth = (bpp + 7) div 8
+  # byteWidth is used for filtering, is 1 when bpp < 8, number of Ts per pixel otherwise
+  let byteWidth = (bpp + 7) div 8
   let lineTs = (w * bpp + 7) div 8
 
   # line 0, without prevLine
   if h > 0:
     unfilterScanLine(output,
       input.toOpenArray(1, input.len-1), # skip the filterType
-      TWidth, lineTs,
+      byteWidth, lineTs,
       PNGFilter(input[0]))
 
   # next line start from 1
@@ -397,7 +397,7 @@ proc unfilter*[T](output: var openArray[T], input: openArray[T], w, h, bpp: int)
     unfilterScanLine(output.toOpenArray(outIndex, output.len-1),
       input.toOpenArray(inIndex + 1, input.len-1), # skip the filterType
       output.toOpenArray(prevIndex, output.len-1), # prevLine
-      TWidth, lineTs, filterType)
+      byteWidth, lineTs, filterType)
     prevIndex = outIndex
 
 proc readBitFromReversedStream*[T](bitptr: var int, bitstream: openArray[T]): int =
@@ -501,12 +501,12 @@ proc adam7Deinterlace*[T](output: var openArray[T], input: openArray[T], w, h, b
 
   if bpp >= 8:
     for i in 0..6:
-      let TWidth = bpp div 8
+      let byteWidth = bpp div 8
       for y in 0..<pass.h[i]:
         for x in 0..<pass.w[i]:
-          let inStart  = pass.start[i] + (y * pass.w[i] + x) * TWidth
-          let outStart = ((ADAM7_IY[i] + y * ADAM7_DY[i]) * w + ADAM7_IX[i] + x * ADAM7_DX[i]) * TWidth
-          for b in 0..<TWidth:
+          let inStart  = pass.start[i] + (y * pass.w[i] + x) * byteWidth
+          let outStart = ((ADAM7_IY[i] + y * ADAM7_DY[i]) * w + ADAM7_IX[i] + x * ADAM7_DX[i]) * byteWidth
+          for b in 0..<byteWidth:
             output[outStart + b] = input[inStart + b]
   else: # bpp < 8: Adam7 with pixels < 8 bit is a bit trickier: with bit pointers
     for i in 0..6:
@@ -536,12 +536,12 @@ proc adam7Interlace*[T](output: var openArray[T], input: openArray[T], w, h, bpp
 
   if bpp >= 8:
     for i in 0..6:
-      let TWidth = bpp div 8
+      let byteWidth = bpp div 8
       for y in 0..<pass.h[i]:
         for x in 0..<pass.w[i]:
-          let inStart = ((ADAM7_IY[i] + y * ADAM7_DY[i]) * w + ADAM7_IX[i] + x * ADAM7_DX[i]) * TWidth
-          let outStart = pass.start[i] + (y * pass.w[i] + x) * TWidth
-          for b in 0..<TWidth:
+          let inStart = ((ADAM7_IY[i] + y * ADAM7_DY[i]) * w + ADAM7_IX[i] + x * ADAM7_DX[i]) * byteWidth
+          let outStart = pass.start[i] + (y * pass.w[i] + x) * byteWidth
+          for b in 0..<byteWidth:
             output[outStart + b] = input[inStart + b]
   else: # bpp < 8: Adam7 with pixels < 8 bit is a bit trickier: with bit pointers
     for i in 0..6:

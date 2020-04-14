@@ -28,8 +28,10 @@
 import streams, endians, tables, hashes, math
 import nimPNG/[buffer, nimz, filters]
 
+import strutils
+
 const
-  NIM_PNG_VERSION = "0.2.4"
+  NIM_PNG_VERSION = "0.2.6"
 
 type
   PNGChunkType = distinct int32
@@ -2473,13 +2475,12 @@ proc preProcessScanLines[T](png: PNG, input: openArray[T], frameNo, w, h: int, m
   #  if no Adam7: 1) add padding bits (= posible extra bits per scanLine if bpp < 8) 2) filter
   #  if adam7: 1) Adam7_interlace 2) 7x add padding bits 3) 7x filter
   let bpp = getBPP(modeOut)
-  template output: untyped = png.apngPixels[frameNo]
 
   if state.interlaceMethod == IM_NONE:
     # image size plus an extra byte per scanLine + possible padding bits
     let scanLen = (w * bpp + 7) div 8
     let outSize = h + (h * scanLen)
-    png.apngPixels[frameNo] = newString(outSize)
+    var output = newString(outSize)
 
     # non multiple of 8 bits per scanLine, padding bits needed per scanLine
     if(bpp < 8) and ((w * bpp) != (scanLen * 8)):
@@ -2494,12 +2495,14 @@ proc preProcessScanLines[T](png: PNG, input: openArray[T], frameNo, w, h: int, m
       filter(output.toOpenArray(0, output.len-1),
         input, w, h, modeOut, state)
 
+    shallowCopy(png.apngPixels[frameNo], output)
+
   else: #interlaceMethod is 1 (Adam7)
     var pass: PNGPass
     adam7PassValues(pass, w, h, bpp)
     let outSize = pass.filterStart[7]
 
-    png.apngPixels[frameNo] = newString(outSize)
+    var output = newString(outSize)
     var adam7 = newString(pass.start[7])
 
     adam7Interlace(adam7.toOpenArray(0, adam7.len-1),
@@ -2519,6 +2522,8 @@ proc preProcessScanLines[T](png: PNG, input: openArray[T], frameNo, w, h: int, m
         filter(output.toOpenArray(pass.filterStart[i], output.len-1),
           adam7.toOpenArray(pass.paddedStart[i], adam7.len-1),
           pass.w[i], pass.h[i], modeOut, state)
+
+    shallowCopy(png.apngPixels[frameNo], output)
 
 #palette must have 4 * palettesize bytes allocated, and given in format RGBARGBARGBARGBA...
 #returns 0 if the palette is opaque,
