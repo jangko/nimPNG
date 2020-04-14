@@ -3,7 +3,7 @@ Portable Network Graphics Encoder and Decoder written in Nim store lossless imag
 Since version 0.2.0 also support Animated PNG!
 
 [![Build Status (Travis)](https://img.shields.io/travis/jangko/nimPNG/master.svg?label=Linux%20/%20macOS "Linux/macOS build status (Travis)")](https://travis-ci.org/jangko/nimPNG)
-[![Windows build status (Appveyor)](https://img.shields.io/appveyor/ci/jangko/nimPNG/master.svg?label=Windows "Windows build status (Appveyor)")](https://ci.appveyor.com/project/jangko/nimPNG)
+[![Build status](https://ci.appveyor.com/api/projects/status/7ap5r5a41t7ea04p?svg=true)](https://ci.appveyor.com/project/jangko/nimpng)
 ![nimble](https://img.shields.io/badge/available%20on-nimble-yellow.svg?style=flat-square)
 ![license](https://img.shields.io/github/license/citycide/cascade.svg?style=flat-square)
 
