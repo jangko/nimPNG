@@ -30,8 +30,8 @@ proc paethPredictor(a, b, c: int): uint =
   result = a.uint
 
 proc filterScanline*[T](output: var openArray[T], input: openArray[T], byteWidth, len: int, filterType: PNGFilter) =
-  template currPix: untyped = input[i].uint
-  template prevPix: untyped = input[i - byteWidth].uint
+  template currPix(i): untyped = input[i].uint
+  template prevPix(i): untyped = input[i - byteWidth].uint
 
   case filterType
   of FLT_NONE:
@@ -41,7 +41,7 @@ proc filterScanline*[T](output: var openArray[T], input: openArray[T], byteWidth
     for i in 0..<byteWidth:
       output[i] = input[i]
     for i in byteWidth..<len:
-      output[i] = T((currPix - prevPix) and 0xFF)
+      output[i] = T((currPix(i) - prevPix(i)) and 0xFF)
   of FLT_UP:
     for i in 0..<len:
       output[i] = input[i]
@@ -49,21 +49,21 @@ proc filterScanline*[T](output: var openArray[T], input: openArray[T], byteWidth
     for i in 0..<byteWidth:
       output[i] = input[i]
     for i in byteWidth..<len:
-      output[i] = T((currPix - (prevPix div 2)) and 0xFF)
+      output[i] = T((currPix(i) - (prevPix(i) div 2)) and 0xFF)
   of FLT_PAETH:
     for i in 0..<byteWidth:
       output[i] = input[i]
     # paethPredictor(prevPix, 0, 0) is always prevPix
     for i in byteWidth..<len:
-      output[i] = T((currPix - prevPix) and 0xFF)
+      output[i] = T((currPix(i) - prevPix(i)) and 0xFF)
 
 proc filterScanline*[T](output: var openArray[T], input, prevLine: openArray[T], byteWidth, len: int, filterType: PNGFilter) =
-  template currPix: untyped = input[i].uint
-  template prevPix: untyped = input[i - byteWidth].uint
-  template upPix: untyped = prevLine[i].uint
-  template prevPixI: untyped = input[i - byteWidth].int
-  template upPixI: untyped = prevLine[i].int
-  template prevUpPix: untyped = prevLine[i - byteWidth].int
+  template currPix(i): untyped = input[i].uint
+  template prevPix(i): untyped = input[i - byteWidth].uint
+  template upPix(i): untyped = prevLine[i].uint
+  template prevPixI(i): untyped = input[i - byteWidth].int
+  template upPixI(i): untyped = prevLine[i].int
+  template prevUpPix(i): untyped = prevLine[i - byteWidth].int
 
   case filterType
   of FLT_NONE:
@@ -73,21 +73,21 @@ proc filterScanline*[T](output: var openArray[T], input, prevLine: openArray[T],
     for i in 0..<byteWidth:
       output[i] = input[i]
     for i in byteWidth..<len:
-      output[i] = T((currPix - prevPix) and 0xFF)
+      output[i] = T((currPix(i) - prevPix(i)) and 0xFF)
   of FLT_UP:
     for i in 0..<len:
-      output[i] = T((currPix - upPix) and 0xFF)
+      output[i] = T((currPix(i) - upPix(i)) and 0xFF)
   of FLT_AVERAGE:
     for i in 0..<byteWidth:
-      output[i] = T((currPix - (upPix div 2)) and 0xFF)
+      output[i] = T((currPix(i) - (upPix(i) div 2)) and 0xFF)
     for i in byteWidth..<len:
-      output[i] = T((currPix - ((prevPix + upPix) div 2)) and 0xFF)
+      output[i] = T((currPix(i) - ((prevPix(i) + upPix(i)) div 2)) and 0xFF)
   of FLT_PAETH:
     # paethPredictor(0, upPix, 0) is always upPix
     for i in 0..<byteWidth:
-      output[i] = T((currPix - upPix) and 0xFF)
+      output[i] = T((currPix(i) - upPix(i)) and 0xFF)
     for i in byteWidth..<len:
-      output[i] = T((currPix - paethPredictor(prevPixI, upPixI, prevUpPix)) and 0xFF)
+      output[i] = T((currPix(i) - paethPredictor(prevPixI(i), upPixI(i), prevUpPix(i))) and 0xFF)
 
 proc filterZero*[T](output: var openArray[T], input: openArray[T], w, h, bpp: int) =
   # the width of a input in Ts, not including the filter type
@@ -304,8 +304,8 @@ proc unfilterScanline*[T](output: var openArray[T], input: openArray[T], byteWid
   # the incoming inputs do NOT include the filtertype T, that one is given in the parameter filterType instead
   # output and input MAY be the same memory address! output must be disjoint.
 
-  template currPix: untyped = input[i].uint
-  template prevPix: untyped = output[i - byteWidth].uint
+  template currPix(i): untyped = input[i].uint
+  template prevPix(i): untyped = output[i - byteWidth].uint
 
   case filterType
   of FLT_NONE:
@@ -315,7 +315,7 @@ proc unfilterScanline*[T](output: var openArray[T], input: openArray[T], byteWid
     for i in 0..<byteWidth:
       output[i] = input[i]
     for i in byteWidth..<len:
-      output[i] = T((currPix + prevPix) and 0xFF)
+      output[i] = T((currPix(i) + prevPix(i)) and 0xFF)
   of FLT_UP:
     for i in 0..<len:
       output[i] = input[i]
@@ -323,13 +323,13 @@ proc unfilterScanline*[T](output: var openArray[T], input: openArray[T], byteWid
     for i in 0..<byteWidth:
       output[i] = input[i]
     for i in byteWidth..<len:
-      output[i] = T((currPix + (prevPix div 2)) and 0xFF)
+      output[i] = T((currPix(i) + (prevPix(i) div 2)) and 0xFF)
   of FLT_PAETH:
     for i in 0..<byteWidth:
       output[i] = input[i]
     for i in byteWidth..<len:
       # paethPredictor(prevPix, 0, 0) is always prevPix
-      output[i] = T((currPix + prevPix) and 0xFF)
+      output[i] = T((currPix(i) + prevPix(i)) and 0xFF)
 
 proc unfilterScanline*[T](output: var openArray[T], input, prevLine: openArray[T], byteWidth, len: int, filterType: PNGFilter) =
   # For PNG filter method 0
@@ -339,12 +339,12 @@ proc unfilterScanline*[T](output: var openArray[T], input, prevLine: openArray[T
   # the incoming inputs do NOT include the filtertype T, that one is given in the parameter filterType instead
   # output and input MAY be the same memory address! prevLine must be disjoint.
 
-  template currPix: untyped = input[i].uint
-  template prevPix: untyped = output[i - byteWidth].uint
-  template upPix: untyped = prevLine[i].uint
-  template prevPixI: untyped = output[i - byteWidth].int
-  template upPixI: untyped = prevLine[i].int
-  template prevUpPix: untyped = prevLine[i - byteWidth].int
+  template currPix(i): untyped = input[i].uint
+  template prevPix(i): untyped = output[i - byteWidth].uint
+  template upPix(i): untyped = prevLine[i].uint
+  template prevPixI(i): untyped = output[i - byteWidth].int
+  template upPixI(i): untyped = prevLine[i].int
+  template prevUpPix(i): untyped = prevLine[i - byteWidth].int
 
   case filterType
   of FLT_NONE:
@@ -354,21 +354,21 @@ proc unfilterScanline*[T](output: var openArray[T], input, prevLine: openArray[T
     for i in 0..<byteWidth:
       output[i] = input[i]
     for i in byteWidth..<len:
-      output[i] = T((currPix + prevPix) and 0xFF)
+      output[i] = T((currPix(i) + prevPix(i)) and 0xFF)
   of FLT_UP:
     for i in 0..<len:
-      output[i] = T((currPix + upPix) and 0xFF)
+      output[i] = T((currPix(i) + upPix(i)) and 0xFF)
   of FLT_AVERAGE:
     for i in 0..<byteWidth:
-      output[i] = T((currPix + upPix div 2) and 0xFF)
+      output[i] = T((currPix(i) + upPix(i) div 2) and 0xFF)
     for i in byteWidth..<len:
-      output[i] = T((currPix + ((prevPix + upPix) div 2)) and 0xFF)
+      output[i] = T((currPix(i) + ((prevPix(i) + upPix(i)) div 2)) and 0xFF)
   of FLT_PAETH:
     for i in 0..<byteWidth:
       # paethPredictor(0, upPix, 0) is always upPix
-      output[i] = T((currPix + upPix) and 0xFF)
+      output[i] = T((currPix(i) + upPix(i)) and 0xFF)
     for i in byteWidth..<len:
-      output[i] = T((currPix + paethPredictor(prevPixI, upPixI, prevUpPix)) and 0xFF)
+      output[i] = T((currPix(i) + paethPredictor(prevPixI(i), upPixI(i), prevUpPix(i))) and 0xFF)
 
 proc unfilter*[T](output: var openArray[T], input: openArray[T], w, h, bpp: int) =
   # For PNG filter method 0
