@@ -1227,6 +1227,9 @@ template nzCompressInit*(input: string): nzStream =
 template nzCompressInit*(input: seq[byte]): nzStream =
   nzDeflateInit(cast[string](input))
 
+template nzCompressInit*(input: seq[char]): nzStream =
+  nzDeflateInit(cast[string](input))
+  
 proc nzInflateInit*(input: string): nzStream =
   var nz = nzInit()
   nz.data = newStringOfCap(1024 * 1024 * 5) # Allocate 5MB in advance

@@ -29,12 +29,15 @@ proc randBytes*(len: int): Bytes =
     result[i] = rand(255).byte
 
 proc randPrimitives*[T](val: int): T =
+  type
+    ByteLike = uint8 | byte | char
+
   when T is string:
     randString(val)
   elif T is int:
     result = val
-  elif T is byte:
-    result = val.byte
+  elif T is ByteLike:
+    result = T(val)
   elif T is Bytes:
     result = randBytes(val)
 

@@ -1,4 +1,4 @@
-import ../nimPNG/filters, ./randutils, unittest
+import ../nimPNG/filters, ./randutils, unittest, typetraits
 
 template roundTripFilter(byteWidth: int, filter: PNGFilter) =
   filterScanline(outPix, inPix, byteWidth, lineBytes, filter)
@@ -11,18 +11,18 @@ template roundTripFilterP(byteWidth: int, filter: PNGFilter) =
   unfilterScanline(oriPix, outPix, prevLine, byteWidth, lineBytes, filter)
   check oriPix == inPix
 
-proc testFilterScanline() =
-  suite "filterScanline":
+proc testFilterScanline(TT: type) =
+  suite "filterScanline " & TT.name:
     const
       lineBytes = 128
 
     let
-      inPix = randList(byte, rng(0, 255), lineBytes, unique = false)
-      prevLine = randList(byte, rng(0, 255), lineBytes, unique = false)
+      inPix = randList(TT, rng(0, 255), lineBytes, unique = false)
+      prevLine = randList(TT, rng(0, 255), lineBytes, unique = false)
 
     var
-      outPix = newSeq[byte](lineBytes)
-      oriPix = newSeq[byte](lineBytes)
+      outPix = newSeq[TT](lineBytes)
+      oriPix = newSeq[TT](lineBytes)
 
     test "FLT_NONE":
       roundTripFilter(1, FLT_NONE)
@@ -84,7 +84,7 @@ proc testFilterScanline() =
       roundTripFilterP(3, FLT_PAETH)
       roundTripFilterP(4, FLT_PAETH)
 
-proc checkPixels(a, b: openArray[byte], len: int): bool =
+proc checkPixels[T](a, b: openArray[T], len: int): bool =
   result = true
   for x in 0..<len:
     if a[x] != b[x]:
@@ -122,21 +122,21 @@ template roundTripPredefined(bpp: int) =
     unfilter(oriPix, outPix, w, h, bpp)
     check checkPixels(inPix, oriPix, numBytes)
 
-proc testFilterStrategies() =
-  suite "Filter Strategies":
+proc testFilterStrategies(TT: type) =
+  suite "Filter Strategies " & TT.name:
     let
       h = 128
       w = 128
       bpp = 32 # we use largest bpp to avoid reallocation
       lineBytes = (w * bpp + 7) div 8
       numBytes = h * lineBytes
-      inPix = randList(byte, rng(0, 255), numBytes, unique = false)
+      inPix = randList(TT, rng(0, 255), numBytes, unique = false)
       outBytes = h * (lineBytes + 1) # lineBytes + filterType
-      byteFilter = randList(byte, rng(0, 4), h, unique = false)
+      byteFilter = randList(TT, rng(0, 4), h, unique = false)
 
     var
-      outPix = newSeq[byte](outBytes)
-      oriPix = newSeq[byte](numBytes)
+      outPix = newSeq[TT](outBytes)
+      oriPix = newSeq[TT](numBytes)
 
     test "LFS_ZERO":
       roundTripZero(8)
@@ -171,7 +171,9 @@ proc testFilterStrategies() =
       roundTripBruteforce(32)
 
 proc main() =
-  testFilterScanline()
-  testFilterStrategies()
+  testFilterScanline(byte)
+  testFilterScanline(char)
+  testFilterStrategies(byte)
+  testFilterStrategies(char)
 
 main()
