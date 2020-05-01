@@ -1279,6 +1279,7 @@ proc hash*(c: RGBA8): Hash =
   h = h !& ord(c.g)
   h = h !& ord(c.b)
   h = h !& ord(c.a)
+  result = !$(h)
 
 proc RGBA8FromGrey8[T](p: var RGBA8, input: openArray[T], px: int, mode: PNGColorMode) =
   p.r = input[px]
