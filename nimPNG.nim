@@ -31,7 +31,7 @@ import nimPNG/[buffer, nimz, filters]
 import strutils
 
 const
-  NIM_PNG_VERSION = "0.2.6"
+  NIM_PNG_VERSION = "0.2.7"
 
 type
   PNGChunkType = distinct int32
