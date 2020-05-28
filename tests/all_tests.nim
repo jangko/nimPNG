@@ -3,4 +3,5 @@ import
   test_codec,
   test_suite,
   test_nimz,
-  test_filters
+  test_filters,
+  test_crash

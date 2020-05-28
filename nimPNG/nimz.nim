@@ -58,7 +58,7 @@ type
     data: string
     databitlen: int
 
-  NZError = ref object of Exception
+  NZError* = object of CatchableError
 
   NZHash = object
     head: seq[int]   #hash value to head circular pos
@@ -133,9 +133,8 @@ type
     mode: nzStreamMode
     ignoreAdler32*: bool
 
-proc newNZError(msg: string): NZError =
-  new(result)
-  result.msg = msg
+template NZFatal(msg: string): untyped =
+  newException(NZError, msg)
 
 proc readBit(s: BitStream): int {.inline.} =
   result = (ord(s.data[s.bitpointer shr 3]) shr (s.bitpointer and 0x07)) and 0x01
@@ -151,7 +150,7 @@ proc readBitsFromStream(s: var BitStream, nbits: int): int =
 
 proc readBitsSafe(s: var BitStream, nbits: int): int =
   if s.bitpointer + nbits > s.databitlen:
-    raise newNZError("bit pointer jumps past memory")
+    raise NZFatal("bit pointer jumps past memory")
 
   for i in 0..nbits-1:
     inc(result, s.readBit shl i)
@@ -181,7 +180,7 @@ proc HuffmanTree_make2DTree(tree: var HuffmanTree) =
       let branch = 2 * treepos + bit
       #oversubscribed, see comment in lodepng_error_text
       if treepos > 2147483647 or treepos + 2 > tree.numcodes:
-          raise newNZError("oversubscribed")
+          raise NZFatal("oversubscribed")
 
       if tree.tree2d[branch] != 32767: #not yet filled in
         treepos = tree.tree2d[branch] - tree.numcodes
@@ -301,7 +300,7 @@ proc huffman_code_lengths(frequencies: openarray[int], numcodes, maxbitlen: int)
     coinmem, numcoins: int
 
   if numcodes == 0:
-    raise newNZError("a tree of 0 symbols is not supposed to be made")
+    raise NZFatal("a tree of 0 symbols is not supposed to be made")
 
   for i in 0..numcodes-1:
     if frequencies[i] > 0:
@@ -410,7 +409,7 @@ proc readInt16(s: var BitStream): int =
   #go to first boundary of byte
   while (s.bitpointer and 0x7) != 0: inc s.bitpointer
   var p = s.bitpointer div 8 #byte position
-  if p + 2 > s.data.len: raise newNZError("bit pointer will jump past memory")
+  if p + 2 > s.data.len: raise NZFatal("bit pointer will jump past memory")
   result = ord(s.data[p]) + 256 * ord(s.data[p + 1])
   inc(s.bitpointer, 16)
 
@@ -420,7 +419,7 @@ proc getBytePosition(s: var BitStream): int =
 proc readByte(s: var BitStream): int =
   while (s.bitpointer and 0x7) != 0: inc s.bitpointer
   var p = s.bitpointer div 8 #byte position
-  if p + 1 >= s.data.len: raise newNZError("bit pointer will jump past memory")
+  if p + 1 >= s.data.len: raise NZFatal("bit pointer will jump past memory")
   result = ord(s.data[p])
   inc(s.bitpointer, 8)
 
@@ -433,12 +432,12 @@ proc inflateNoCompression(nz: nzStream) =
 
   #check if 16-bit NLEN is really the one's complement of LEN
   if LEN + NLEN != 65535:
-    raise newNZError("NLEN is not one's complement of LEN")
+    raise NZFatal("NLEN is not one's complement of LEN")
 
   #read the literal data: LEN bytes are now stored in the out buffer
   var p = nz.bits.getBytePosition
   if p + LEN > inlength:
-    raise newNZError("reading outside of input buffer")
+    raise NZFatal("reading outside of input buffer")
 
   var pos = nz.data.len
   nz.data.setLen(pos + LEN)
@@ -495,7 +494,7 @@ proc getTreeInflateDynamic(s: var BitStream, tree_ll, tree_d: var HuffmanTree) =
   var tree_cl: HuffmanTree
 
   if s.bitpointer + 14 > inbitlength:
-    raise newNZError("the bit pointer is or will go past the memory")
+    raise NZFatal("the bit pointer is or will go past the memory")
 
   #number of literal/length codes + 257.
   #Unlike the spec, the value 257 is added to it here already
@@ -509,7 +508,7 @@ proc getTreeInflateDynamic(s: var BitStream, tree_ll, tree_d: var HuffmanTree) =
   let HCLEN = s.readBitsFromStream(4) + 4
 
   if s.bitpointer + HCLEN * 3 > inbitlength:
-    raise newNZError("the bit pointer is or will go past the memory")
+    raise NZFatal("the bit pointer is or will go past the memory")
 
   #read the code length codes out of 3 * (amount of code length codes) bits
   for i in 0..NUM_CODE_LENGTH_CODES-1:
@@ -533,7 +532,7 @@ proc getTreeInflateDynamic(s: var BitStream, tree_ll, tree_d: var HuffmanTree) =
       var replength = 3 #read in the 2 bits that indicate repeat length (3-6)
       var value = 0 #set value to the previous code
 
-      if i == 0: raise newNZError("can't repeat previous if i is 0")
+      if i == 0: raise NZFatal("can't repeat previous if i is 0")
       replength += s.readBitsSafe(2)
 
       if i < HLIT + 1: value = bitlen_ll[i - 1]
@@ -541,7 +540,7 @@ proc getTreeInflateDynamic(s: var BitStream, tree_ll, tree_d: var HuffmanTree) =
 
       #repeat this value in the next lengths
       for n in 0..replength-1:
-        if i >= HLIT + HDIST: raise newNZError("i is larger than the amount of codes")
+        if i >= HLIT + HDIST: raise NZFatal("i is larger than the amount of codes")
         if i < HLIT: bitlen_ll[i] = value
         else: bitlen_d[i - HLIT] = value
         inc(i)
@@ -551,7 +550,7 @@ proc getTreeInflateDynamic(s: var BitStream, tree_ll, tree_d: var HuffmanTree) =
 
       #repeat this value in the next lengths
       for n in 0..replength-1:
-        if i >= HLIT + HDIST: raise newNZError("i is larger than the amount of codes")
+        if i >= HLIT + HDIST: raise NZFatal("i is larger than the amount of codes")
         if i < HLIT: bitlen_ll[i] = 0
         else: bitlen_d[i - HLIT] = 0
         inc(i)
@@ -561,7 +560,7 @@ proc getTreeInflateDynamic(s: var BitStream, tree_ll, tree_d: var HuffmanTree) =
 
       #repeat this value in the next lengths
       for n in 0..replength-1:
-        if i >= HLIT + HDIST: raise newNZError("i is larger than the amount of codes")
+        if i >= HLIT + HDIST: raise NZFatal("i is larger than the amount of codes")
         if i < HLIT: bitlen_ll[i] = 0
         else: bitlen_d[i - HLIT] = 0
         inc(i)
@@ -569,14 +568,14 @@ proc getTreeInflateDynamic(s: var BitStream, tree_ll, tree_d: var HuffmanTree) =
       if code == -1:
         #return error code 10 or 11 depending on the situation that happened in huffmanDecodeSymbol
         #(10=no endcode, 11=wrong jump outside of tree)
-        if s.bitpointer > inbitlength: raise newNZError("no endcode")
-        else: raise newNZError("wrong jump outside of tree")
+        if s.bitpointer > inbitlength: raise NZFatal("no endcode")
+        else: raise NZFatal("wrong jump outside of tree")
       else:
-        raise newNZError("unexisting code, this can never happen")
+        raise NZFatal("unexisting code, this can never happen")
       break
 
   if bitlen_ll[256] == 0:
-    raise newNZError("the length of the end code 256 must be larger than 0")
+    raise NZFatal("the length of the end code 256 must be larger than 0")
 
   #now we've finally got HLIT and HDIST,
   #so generate the code trees, and the function is done
@@ -613,10 +612,10 @@ proc inflateHuffmanBlock(nz: nzStream, blockType: int) =
         if code_ll == -1: #huffmanDecodeSymbol returns -1 in case of error
           #return error code 10 or 11 depending on the situation that happened in huffmanDecodeSymbol
           #(10=no endcode, 11=wrong jump outside of tree)
-          if nz.bits.bitpointer > inbitlength: raise newNZError("no endcode")
-          else: raise newNZError("wrong jump outside of tree")
+          if nz.bits.bitpointer > inbitlength: raise NZFatal("no endcode")
+          else: raise NZFatal("wrong jump outside of tree")
         else:
-           raise newNZError("invalid distance code (30-31 are never used)")
+           raise NZFatal("invalid distance code (30-31 are never used)")
         break
       var distance = DISTANCEBASE[code_d]
 
@@ -627,7 +626,7 @@ proc inflateHuffmanBlock(nz: nzStream, blockType: int) =
       #part 5: fill in all the out[n] values based on the length and dist
       let start = nz.data.len
       if distance > start:
-        raise newNZError("too long backward distance")
+        raise NZFatal("too long backward distance")
       var backward = start - distance
 
       nz.data.setLen(start + length)
@@ -640,8 +639,8 @@ proc inflateHuffmanBlock(nz: nzStream, blockType: int) =
     else: #if(code == -1) huffmanDecodeSymbol returns -1 in case of error
       #return error code 10 or 11 depending on the situation that happened in huffmanDecodeSymbol
       #(10=no endcode, 11=wrong jump outside of tree)
-      if nz.bits.bitpointer > inbitlength: raise newNZError("no endcode")
-      else: raise newNZError("wrong jump outside of tree")
+      if nz.bits.bitpointer > inbitlength: raise NZFatal("no endcode")
+      else: raise NZFatal("wrong jump outside of tree")
       break
 
 proc nzInflate(nz: nzStream) =
@@ -655,7 +654,7 @@ proc nzInflate(nz: nzStream) =
     finalBlock = nz.bits.readBitFromStream != 0
     let blockType = nz.bits.readBitFromStream + 2 * nz.bits.readBitFromStream
 
-    if blockType == 3: raise newNZError("invalid blockType")
+    if blockType == 3: raise NZFatal("invalid blockType")
     elif blockType == 0: nz.inflateNoCompression #no compression
     else: nz.inflateHuffmanBlock(blockType) #compression, blockType 01 or 10
 
@@ -858,9 +857,9 @@ proc encodeLZ77(nz: nzStream, hash: var NZHash, inpos, insize: int): seq[int] =
     current_offset, current_length: int
 
   if (nz.windowsize == 0) or (nz.windowsize > 32768):
-    raise newNZError("windowsize smaller/larger than allowed")
+    raise NZFatal("windowsize smaller/larger than allowed")
   if (nz.windowsize and (nz.windowsize - 1)) != 0:
-    raise newNZError("must be power of two")
+    raise NZFatal("must be power of two")
 
   var nicematch = min(nz.nicematch, MAX_SUPPORTED_DEFLATE_LENGTH)
   var pos = inpos
@@ -940,7 +939,7 @@ proc encodeLZ77(nz: nzStream, hash: var NZHash, inpos, insize: int): seq[int] =
 
       if lazy != 0:
         lazy = 0
-        if pos == 0: raise newNZError("lazy matching at pos 0 is impossible")
+        if pos == 0: raise NZFatal("lazy matching at pos 0 is impossible")
         if length > lazylength + 1:
           #push the previous character as literal
           result.add ord(nz.data[pos - 1])
@@ -952,7 +951,7 @@ proc encodeLZ77(nz: nzStream, hash: var NZHash, inpos, insize: int): seq[int] =
           dec pos
 
     if(length >= 3) and (offset > nz.windowsize):
-      raise newNZError("too big (or overflown negative) offset")
+      raise NZFatal("too big (or overflown negative) offset")
 
     #encode it as length/distance pair or literal value
     if length < 3: #only lengths of 3 or higher are supported as length/distance pair
@@ -1169,7 +1168,7 @@ proc deflateDynamic(nz: nzStream, hash: var NZHash, datapos, dataend: int, final
   nz.bits.writeLZ77data(lz77, tree_ll, tree_d)
 
   if HuffmanTree_getLength(tree_ll, 256) == 0:
-    raise newNZError("the length of the end code 256 must be larger than 0")
+    raise NZFatal("the length of the end code 256 must be larger than 0")
 
   #write the end code
   nz.bits.addHuffmanSymbol(tree_ll, 256)
@@ -1179,7 +1178,7 @@ proc nzDeflate(nz: nzStream) =
   var blocksize = 0
   var insize = nz.data.len
 
-  if nz.btype > 2: raise newNZError("invalid block type")
+  if nz.btype > 2: raise NZFatal("invalid block type")
   elif nz.btype == 0:
     nz.deflateNoCompression
     return
@@ -1229,7 +1228,7 @@ template nzCompressInit*(input: seq[byte]): nzStream =
 
 template nzCompressInit*(input: seq[char]): nzStream =
   nzDeflateInit(cast[string](input))
-  
+
 proc nzInflateInit*(input: string): nzStream =
   var nz = nzInit()
   nz.data = newStringOfCap(1024 * 1024 * 5) # Allocate 5MB in advance
@@ -1308,14 +1307,14 @@ proc readInt32(input: string): uint32 =
 proc zlib_decompress*(nz: nzStream): string =
   let insize = nz.bits.data.len
 
-  if insize < 2: raise newNZError("size of zlib data too small")
+  if insize < 2: raise NZFatal("size of zlib data too small")
 
   #read information from zlib header
   let CMF = nz.bits.readByte
   let FLG = nz.bits.readByte
 
   if ((CMF * 256 + FLG) mod 31) != 0:
-    raise newNZError(" zlib header must be a multiple of 31")
+    raise NZFatal(" zlib header must be a multiple of 31")
     #the FCHECK value is supposed to be made that way
 
   #let CM    = CMF and 15
@@ -1334,12 +1333,13 @@ proc zlib_decompress*(nz: nzStream): string =
 
   let checksum = nz.bits.data.substr(insize-4, insize-1).readInt32
   nz.bits.data.setLen(insize-4)
+  nz.bits.databitlen = (insize-4) * 8 # reset databitlen
 
   nz.nzInflate
 
   if not nz.ignoreAdler32:
     let adler32 = nzAdler32(1, nz.data)
     if checksum != adler32:
-      raise newNZError("adler checksum not correct, data must be corrupted")
+      raise NZFatal("adler checksum not correct, data must be corrupted")
 
   result = nz.nzGetResult
