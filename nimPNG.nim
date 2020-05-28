@@ -25,7 +25,7 @@
 # part of nimPDF sister projects
 #-------------------------------------
 
-import streams, endians, tables, hashes, math
+import streams, endians, tables, hashes, math, typetraits
 import nimPNG/[buffer, nimz, filters]
 
 import strutils
@@ -69,7 +69,7 @@ type
   PNGHeader = ref object of PNGChunk
     width, height: int #range[1..0x7FFFFFFF]
     bitDepth: int
-    colorType: PNGcolorType
+    colorType: PNGColorType
     compressionMethod: int
     filterMethod: int
     interlaceMethod: PNGInterlace
@@ -181,7 +181,7 @@ type
     frameDataPos: int
 
   PNGColorMode* = ref object
-    colorType*: PNGcolorType
+    colorType*: PNGColorType
     bitDepth*: int
     paletteSize*: int
     palette*: seq[RGBA8]
@@ -232,6 +232,8 @@ type
     frames*: seq[APNGFrame]
 
   DataBuf = Buffer[string]
+
+  PNGError* = object of CatchableError
 
 proc signatureMaker(): string {. compiletime .} =
   const signatureBytes = [137, 80, 78, 71, 13, 10, 26, 10]
@@ -293,9 +295,8 @@ const
   fcTL = makeChunkType("fcTL")
   fdAT = makeChunkType("fdAT")
 
-proc PNGError(msg: string): ref Exception =
-  new(result)
-  result.msg = msg
+template PNGFatal(msg: string): untyped =
+  newException(PNGError, msg)
 
 proc newColorMode*(colorType=LCT_RGBA, bitDepth=8): PNGColorMode =
   new(result)
@@ -342,7 +343,7 @@ proc `==`(a, b: PNGColorMode): bool =
 proc `!=`(a, b: PNGColorMode): bool = not (a == b)
 
 proc readInt32(s: PNGChunk): int =
-  if s.pos + 4 > s.data.len: raise PNGError("index out of bound 4")
+  if s.pos + 4 > s.data.len: raise PNGFatal("index out of bound 4")
   result = ord(s.data[s.pos]) shl 8
   result = (result + ord(s.data[s.pos + 1])) shl 8
   result = (result + ord(s.data[s.pos + 2])) shl 8
@@ -350,7 +351,7 @@ proc readInt32(s: PNGChunk): int =
   inc(s.pos, 4)
 
 proc readInt16(s: PNGChunk): int =
-  if s.pos + 2 > s.data.len: raise PNGError("index out of bound 2")
+  if s.pos + 2 > s.data.len: raise PNGFatal("index out of bound 2")
   result = ord(s.data[s.pos]) shl 8
   result = result + ord(s.data[s.pos + 1])
   inc(s.pos, 2)
@@ -373,12 +374,18 @@ proc readInt32BE(s: Stream): int =
   result = tmp
 
 proc readByte(s: PNGChunk): int =
-  if s.pos + 1 > s.data.len: raise PNGError("index out of bound 1")
+  if s.pos + 1 > s.data.len: raise PNGFatal("index out of bound 1")
   result = ord(s.data[s.pos])
   inc s.pos
 
+template readEnum(s: PNGChunk, T: type): untyped =
+  let typ = s.readByte.int
+  if typ < low(T).int or typ > high(T).int:
+    raise PNGFatal("Wrong " & T.name & " value " & $typ)
+  T(typ)
+
 proc setPosition(s: PNGChunk, pos: int) =
-  if pos < 0 or pos > s.data.len: raise PNGError("set position error")
+  if pos < 0 or pos > s.data.len: raise PNGFatal("set position error")
   s.pos = pos
 
 proc hasChunk*(png: PNG, chunkType: PNGChunkType): bool =
@@ -399,7 +406,7 @@ proc apngGetChunk*(png: PNG, chunkType: PNGChunkType): PNGChunk =
   for c in png.apngChunks:
     if c.chunkType == chunkType: return c
 
-proc bitDepthAllowed(colorType: PNGcolorType, bitDepth: int): bool =
+proc bitDepthAllowed(colorType: PNGColorType, bitDepth: int): bool =
   case colorType
   of LCT_GREY   : result = bitDepth in {1, 2, 4, 8, 16}
   of LCT_PALETTE: result = bitDepth in {1, 2, 4, 8}
@@ -410,19 +417,19 @@ method parseChunk(chunk: PNGChunk, png: PNG): bool {.base, gcsafe.} = true
 
 method validateChunk(header: PNGHeader, png: PNG): bool =
   if header.width < 1 or header.width > 0x7FFFFFFF:
-    raise PNGError("image width not allowed: " & $header.width)
+    raise PNGFatal("image width not allowed: " & $header.width)
   if header.height < 1 or header.height > 0x7FFFFFFF:
-    raise PNGError("image width not allowed: " & $header.height)
+    raise PNGFatal("image width not allowed: " & $header.height)
   if header.colorType notin {LCT_GREY, LCT_RGB, LCT_PALETTE, LCT_GREY_ALPHA, LCT_RGBA}:
-    raise PNGError("color type not allowed: " & $int(header.colorType))
+    raise PNGFatal("color type not allowed: " & $int(header.colorType))
   if not bitDepthAllowed(header.colorType, header.bitDepth):
-    raise PNGError("bit depth not allowed: " & $header.bitDepth)
+    raise PNGFatal("bit depth not allowed: " & $header.bitDepth)
   if header.compressionMethod != 0:
-    raise PNGError("unsupported compression method")
+    raise PNGFatal("unsupported compression method")
   if header.filterMethod != 0:
-    raise PNGError("unsupported filter method")
+    raise PNGFatal("unsupported filter method")
   if header.interlaceMethod notin {IM_NONE, IM_INTERLACED}:
-    raise PNGError("unsupported interlace method")
+    raise PNGFatal("unsupported interlace method")
   result = true
 
 method parseChunk(chunk: PNGHeader, png: PNG): bool =
@@ -430,7 +437,7 @@ method parseChunk(chunk: PNGHeader, png: PNG): bool =
   chunk.width = chunk.readInt32()
   chunk.height = chunk.readInt32()
   chunk.bitDepth = chunk.readByte()
-  chunk.colorType = PNGcolorType(chunk.readByte())
+  chunk.colorType = chunk.readEnum(PNGColorType)
   chunk.compressionMethod = chunk.readByte()
   chunk.filterMethod = chunk.readByte()
   chunk.interlaceMethod = PNGInterlace(chunk.readByte())
@@ -438,7 +445,7 @@ method parseChunk(chunk: PNGHeader, png: PNG): bool =
 
 method parseChunk(chunk: PNGPalette, png: PNG): bool =
   let paletteSize = chunk.length div 3
-  if paletteSize > 256: raise PNGError("palette size to big")
+  if paletteSize > 256: raise PNGFatal("palette size to big")
   newSeq(chunk.palette, paletteSize)
   for px in mitems(chunk.palette):
     px.r = chr(chunk.readByte())
@@ -447,7 +454,7 @@ method parseChunk(chunk: PNGPalette, png: PNG): bool =
     px.a = chr(255)
   result = true
 
-proc numChannels(colorType: PNGcolorType): int =
+proc numChannels(colorType: PNGColorType): int =
   case colorType
   of LCT_GREY: result = 1
   of LCT_RGB : result = 3
@@ -455,7 +462,7 @@ proc numChannels(colorType: PNGcolorType): int =
   of LCT_GREY_ALPHA: result = 2
   of LCT_RGBA: result = 4
 
-proc LCTBPP(colorType: PNGcolorType, bitDepth: int): int =
+proc LCTBPP(colorType: PNGColorType, bitDepth: int): int =
   # bits per pixel is amount of channels * bits per channel
   result = numChannels(colorType) * bitDepth
 
@@ -473,7 +480,7 @@ proc idatRawSize(w, h: int, header: PNGHeader): int =
 proc getRawSize(w, h: int, color: PNGColorMode): int =
   result = (w * h * getBPP(color) + 7) div 8
 
-#proc getRawSizeLct(w, h: int, colorType: PNGcolorType, bitDepth: int): int =
+#proc getRawSizeLct(w, h: int, colorType: PNGColorType, bitDepth: int): int =
 #  result = (w * h * LCTBPP(colorType, bitDepth) + 7) div 8
 
 method validateChunk(chunk: PNGData, png: PNG): bool =
@@ -495,7 +502,7 @@ method validateChunk(chunk: PNGData, png: PNG): bool =
     if w > 1: predict += idatRawSize((w + 0) div 2, (h + 1) div 2, header) + (h + 1) div 2
     predict += idatRawSize((w + 0) div 1, (h + 0) div 2, header) + (h + 0) div 2
 
-  if chunk.idat.len != predict: raise PNGError("Decompress size doesn't match predict")
+  if chunk.idat.len != predict: raise PNGFatal("Decompress size doesn't match predict")
   result = true
 
 method parseChunk(chunk: PNGData, png: PNG): bool =
@@ -513,23 +520,23 @@ method parseChunk(chunk: PNGTrans, png: PNG): bool =
     if plte == nil: return false
     # error: more alpha values given than there are palette entries
     if chunk.length > plte.palette.len:
-      raise PNGError("more alpha value than palette entries")
+      raise PNGFatal("more alpha value than palette entries")
     #can contain fewer values than palette entries
     for i in 0..chunk.length-1: plte.palette[i].a = chr(chunk.readByte())
   elif header.colorType == LCT_GREY:
     # error: this chunk must be 2 bytes for greyscale image
-    if chunk.length != 2: raise PNGError("tRNS must be 2 bytes")
+    if chunk.length != 2: raise PNGFatal("tRNS must be 2 bytes")
     chunk.keyR = chunk.readInt16()
     chunk.keyG = chunk.keyR
     chunk.keyB = chunk.keyR
   elif header.colorType == LCT_RGB:
     # error: this chunk must be 6 bytes for RGB image
-    if chunk.length != 6: raise PNGError("tRNS must be 6 bytes")
+    if chunk.length != 6: raise PNGFatal("tRNS must be 6 bytes")
     chunk.keyR = chunk.readInt16()
     chunk.keyG = chunk.readInt16()
     chunk.keyB = chunk.readInt16()
   else:
-    raise PNGError("tRNS chunk not allowed for other color models")
+    raise PNGFatal("tRNS chunk not allowed for other color models")
 
   result = true
 
@@ -537,19 +544,19 @@ method parseChunk(chunk: PNGBackground, png: PNG): bool =
   var header = PNGHeader(png.getChunk(IHDR))
   if header.colorType == LCT_PALETTE:
     # error: this chunk must be 1 byte for indexed color image
-    if chunk.length != 1: raise PNGError("bkgd must be 1 byte")
+    if chunk.length != 1: raise PNGFatal("bkgd must be 1 byte")
     chunk.bkgdR = chunk.readByte()
     chunk.bkgdG = chunk.bkgdR
     chunk.bkgdB = chunk.bkgdR
   elif header.colorType in {LCT_GREY, LCT_GREY_ALPHA}:
     # error: this chunk must be 2 bytes for greyscale image
-    if chunk.length != 2: raise PNGError("bkgd must be 2 byte")
+    if chunk.length != 2: raise PNGFatal("bkgd must be 2 byte")
     chunk.bkgdR = chunk.readInt16()
     chunk.bkgdG = chunk.bkgdR
     chunk.bkgdB = chunk.bkgdR
   elif header.colorType in {LCT_RGB, LCT_RGBA}:
     # error: this chunk must be 6 bytes for greyscale image
-    if chunk.length != 6: raise PNGError("bkgd must be 6 byte")
+    if chunk.length != 6: raise PNGFatal("bkgd must be 6 byte")
     chunk.bkgdR = chunk.readInt16()
     chunk.bkgdG = chunk.readInt16()
     chunk.bkgdB = chunk.readInt16()
@@ -563,17 +570,17 @@ proc initChunk(chunk: PNGChunk, chunkType: PNGChunkType, data: string, crc: uint
   chunk.pos = 0
 
 method validateChunk(chunk: PNGTime, png: PNG): bool =
-  if chunk.year < 0 or chunk.year > 65535: raise PNGError("invalid year range[0..65535]")
-  if chunk.month < 1 or chunk.month > 12: raise PNGError("invalid month range[1..12]")
-  if chunk.day < 1 or chunk.day > 31: raise PNGError("invalid day range[1..32]")
-  if chunk.hour < 0 or chunk.hour > 23: raise PNGError("invalid hour range[0..23]")
-  if chunk.minute < 0 or chunk.minute > 59: raise PNGError("invalid minute range[0..59]")
+  if chunk.year < 0 or chunk.year > 65535: raise PNGFatal("invalid year range[0..65535]")
+  if chunk.month < 1 or chunk.month > 12: raise PNGFatal("invalid month range[1..12]")
+  if chunk.day < 1 or chunk.day > 31: raise PNGFatal("invalid day range[1..32]")
+  if chunk.hour < 0 or chunk.hour > 23: raise PNGFatal("invalid hour range[0..23]")
+  if chunk.minute < 0 or chunk.minute > 59: raise PNGFatal("invalid minute range[0..59]")
   #to allow for leap seconds
-  if chunk.second < 0 or chunk.second > 60: raise PNGError("invalid second range[0..60]")
+  if chunk.second < 0 or chunk.second > 60: raise PNGFatal("invalid second range[0..60]")
   result = true
 
 method parseChunk(chunk: PNGTime, png: PNG): bool =
-  if chunk.length != 7: raise PNGError("tIME must be 7 bytes")
+  if chunk.length != 7: raise PNGFatal("tIME must be 7 bytes")
   chunk.year   = chunk.readInt16()
   chunk.month  = chunk.readByte()
   chunk.day    = chunk.readByte()
@@ -583,7 +590,7 @@ method parseChunk(chunk: PNGTime, png: PNG): bool =
   result = true
 
 method parseChunk(chunk: PNGPhys, png: PNG): bool =
-  if chunk.length != 9: raise PNGError("pHYs must be 9 bytes")
+  if chunk.length != 9: raise PNGFatal("pHYs must be 9 bytes")
   chunk.physX = chunk.readInt32()
   chunk.physY = chunk.readInt32()
   chunk.unit  = chunk.readByte()
@@ -591,13 +598,13 @@ method parseChunk(chunk: PNGPhys, png: PNG): bool =
 
 method validateChunk(chunk: PNGText, png: PNG): bool =
   if(chunk.keyword.len < 1) or (chunk.keyword.len > 79):
-    raise PNGError("keyword too short or too long")
+    raise PNGFatal("keyword too short or too long")
   result = true
 
 method parseChunk(chunk: PNGText, png: PNG): bool =
   var len = 0
   while(len < chunk.length) and (chunk.data[len] != chr(0)): inc len
-  if(len < 1) or (len > 79): raise PNGError("keyword too short or too long")
+  if(len < 1) or (len > 79): raise PNGFatal("keyword too short or too long")
   chunk.keyword = chunk.data.substr(0, len)
 
   var textBegin = len + 1 # skip keyword null terminator
@@ -606,17 +613,17 @@ method parseChunk(chunk: PNGText, png: PNG): bool =
 
 method validateChunk(chunk: PNGZtxt, png: PNG): bool =
   if(chunk.keyword.len < 1) or (chunk.keyword.len > 79):
-    raise PNGError("keyword too short or too long")
+    raise PNGFatal("keyword too short or too long")
   result = true
 
 method parseChunk(chunk: PNGZtxt, png: PNG): bool =
   var len = 0
   while(len < chunk.length) and (chunk.data[len] != chr(0)): inc len
-  if(len < 1) or (len > 79): raise PNGError("keyword too short or too long")
+  if(len < 1) or (len > 79): raise PNGFatal("keyword too short or too long")
   chunk.keyword = chunk.data.substr(0, len)
 
   var compMethod = ord(chunk.data[len + 1]) # skip keyword null terminator
-  if compMethod != 0: raise PNGError("unsupported comp method")
+  if compMethod != 0: raise PNGFatal("unsupported comp method")
 
   var nz = nzInflateInit(chunk.data.substr(len + 2))
   nz.ignoreAdler32 = PNGDecoder(png.settings).ignoreAdler32
@@ -626,22 +633,22 @@ method parseChunk(chunk: PNGZtxt, png: PNG): bool =
 
 method validateChunk(chunk: PNGItxt, png: PNG): bool =
   if(chunk.keyword.len < 1) or (chunk.keyword.len > 79):
-    raise PNGError("keyword too short or too long")
+    raise PNGFatal("keyword too short or too long")
   result = true
 
 method parseChunk(chunk: PNGItxt, png: PNG): bool =
-  if chunk.length < 5: raise PNGError("iTXt len too short")
+  if chunk.length < 5: raise PNGFatal("iTXt len too short")
 
   var len = 0
   while(len < chunk.length) and (chunk.data[len] != chr(0)): inc len
 
-  if(len + 3) >= chunk.length: raise PNGError("no null termination char, corrupt?")
-  if(len < 1) or (len > 79): raise PNGError("keyword too short or too long")
+  if(len + 3) >= chunk.length: raise PNGFatal("no null termination char, corrupt?")
+  if(len < 1) or (len > 79): raise PNGFatal("keyword too short or too long")
   chunk.keyword = chunk.data.substr(0, len)
 
   var compressed = ord(chunk.data[len + 1]) == 1 # skip keyword null terminator
   var compMethod = ord(chunk.data[len + 2])
-  if compMethod != 0: raise PNGError("unsupported comp method")
+  if compMethod != 0: raise PNGFatal("unsupported comp method")
 
   len = 0
   var i = len + 3
@@ -669,12 +676,12 @@ method parseChunk(chunk: PNGItxt, png: PNG): bool =
   result = true
 
 method parseChunk(chunk: PNGGamma, png: PNG): bool =
-  if chunk.length != 4: raise PNGError("invalid gAMA length")
+  if chunk.length != 4: raise PNGFatal("invalid gAMA length")
   chunk.gamma = chunk.readInt32()
   result = true
 
 method parseChunk(chunk: PNGChroma, png: PNG): bool =
-  if chunk.length != 32: raise PNGError("invalid Chroma length")
+  if chunk.length != 32: raise PNGFatal("invalid Chroma length")
   chunk.whitePointX = chunk.readInt32()
   chunk.whitePointY = chunk.readInt32()
   chunk.redX = chunk.readInt32()
@@ -686,23 +693,23 @@ method parseChunk(chunk: PNGChroma, png: PNG): bool =
   result = true
 
 method parseChunk(chunk: PNGStandarRGB, png: PNG): bool =
-  if chunk.length != 1: raise PNGError("invalid sRGB length")
+  if chunk.length != 1: raise PNGFatal("invalid sRGB length")
   chunk.renderingIntent = chunk.readByte()
   result = true
 
 method validateChunk(chunk: PNGICCProfile, png: PNG): bool =
   if(chunk.profileName.len < 1) or (chunk.profileName.len > 79):
-    raise PNGError("keyword too short or too long")
+    raise PNGFatal("keyword too short or too long")
   result = true
 
 method parseChunk(chunk: PNGICCProfile, png: PNG): bool =
   var len = 0
   while(len < chunk.length) and (chunk.data[len] != chr(0)): inc len
-  if(len < 1) or (len > 79): raise PNGError("keyword too short or too long")
+  if(len < 1) or (len > 79): raise PNGFatal("keyword too short or too long")
   chunk.profileName = chunk.data.substr(0, len)
 
   var compMethod = ord(chunk.data[len + 1]) # skip keyword null terminator
-  if compMethod != 0: raise PNGError("unsupported comp method")
+  if compMethod != 0: raise PNGFatal("unsupported comp method")
 
   var nz = nzInflateInit(chunk.data.substr(len + 2))
   nz.ignoreAdler32 = PNGDecoder(png.settings).ignoreAdler32
@@ -712,15 +719,15 @@ method parseChunk(chunk: PNGICCProfile, png: PNG): bool =
 method parseChunk(chunk: PNGSPalette, png: PNG): bool =
   var len = 0
   while(len < chunk.length) and (chunk.data[len] != chr(0)): inc len
-  if(len < 1) or (len > 79): raise PNGError("keyword too short or too long")
+  if(len < 1) or (len > 79): raise PNGFatal("keyword too short or too long")
   chunk.paletteName = chunk.data.substr(0, len)
   chunk.setPosition(len + 1)
   chunk.sampleDepth = chunk.readByte()
-  if chunk.sampleDepth notin {8, 16}: raise PNGError("palette sample depth error")
+  if chunk.sampleDepth notin {8, 16}: raise PNGFatal("palette sample depth error")
 
   let remainingLength = (chunk.length - (len + 2))
   if chunk.sampleDepth == 8:
-    if (remainingLength mod 6) != 0: raise PNGError("palette length not divisible by 6")
+    if (remainingLength mod 6) != 0: raise PNGFatal("palette length not divisible by 6")
     let numSamples = remainingLength div 6
     newSeq(chunk.palette, numSamples)
     for p in mitems(chunk.palette):
@@ -730,7 +737,7 @@ method parseChunk(chunk: PNGSPalette, png: PNG): bool =
       p.alpha = chunk.readByte()
       p.frequency = chunk.readInt16()
   else: # chunk.sampleDepth == 16:
-    if (remainingLength mod 10) != 0: raise PNGError("palette length not divisible by 10")
+    if (remainingLength mod 10) != 0: raise PNGFatal("palette length not divisible by 10")
     let numSamples = remainingLength div 10
     newSeq(chunk.palette, numSamples)
     for p in mitems(chunk.palette):
@@ -743,9 +750,9 @@ method parseChunk(chunk: PNGSPalette, png: PNG): bool =
   result = true
 
 method parseChunk(chunk: PNGHist, png: PNG): bool =
-  if not png.hasChunk(PLTE): raise PNGError("Histogram need PLTE")
+  if not png.hasChunk(PLTE): raise PNGFatal("Histogram need PLTE")
   var plte = PNGPalette(png.getChunk(PLTE))
-  if plte.palette.len != (chunk.length div 2): raise PNGError("invalid histogram length")
+  if plte.palette.len != (chunk.length div 2): raise PNGFatal("invalid histogram length")
   newSeq(chunk.histogram, plte.palette.len)
   for i in 0..chunk.histogram.high:
     chunk.histogram[i] = chunk.readInt16()
@@ -761,11 +768,11 @@ method parseChunk(chunk: PNGSbit, png: PNG): bool =
   of LCT_PALETTE: expectedLen = 3
   of LCT_GREY_ALPHA: expectedLen = 2
   of LCT_RGBA: expectedLen = 4
-  if chunk.length != expectedLen: raise PNGError("invalid sBIT length")
+  if chunk.length != expectedLen: raise PNGFatal("invalid sBIT length")
   var expectedDepth = 8 #LCT_PALETTE
   if header.colorType != LCT_PALETTE: expectedDepth = header.bitDepth
   for c in chunk.data:
-    if (ord(c) == 0) or (ord(c) > expectedDepth): raise PNGError("invalid sBIT value")
+    if (ord(c) == 0) or (ord(c) > expectedDepth): raise PNGFatal("invalid sBIT value")
 
   result = true
 
@@ -873,38 +880,38 @@ proc parsePNG(s: Stream, settings: PNGDecoder): PNG =
 
   let signature = s.readStr(8)
   if signature != PNGSignature:
-    raise PNGError("signature mismatch")
+    raise PNGFatal("signature mismatch")
 
   while not s.atEnd():
     let length = s.readInt32BE()
     let chunkType = PNGChunkType(s.readInt32BE())
 
-    let data = if length == 0: "" else: s.readStr(length)
+    let data = if length <= 0: "" else: s.readStr(length)
     let crc = cast[uint32](s.readInt32BE())
     let calculatedCRC = crc32(crc32(0, $chunkType), data)
     if calculatedCRC != crc and not PNGDecoder(png.settings).ignoreCRC:
-      raise PNGError("wrong crc for: " & $chunkType)
+      raise PNGFatal("wrong crc for: " & $chunkType)
     var chunk = png.createChunk(chunkType, data, crc)
 
     if chunkType != IDAT and chunk != nil:
-      if not chunk.parseChunk(png): raise PNGError("error parse chunk: " & $chunkType)
-      if not chunk.validateChunk(png): raise PNGError("invalid chunk: " & $chunkType)
+      if not chunk.parseChunk(png): raise PNGFatal("error parse chunk: " & $chunkType)
+      if not chunk.validateChunk(png): raise PNGFatal("invalid chunk: " & $chunkType)
     if chunk != nil:
       if chunkType == fcTL or chunkType == fdAT:
         png.apngChunks.add APNGFrameChunk(chunk)
       else: png.chunks.add chunk
     if chunkType == IEND: break
 
-  if not png.hasChunk(IHDR): raise PNGError("no IHDR found")
-  if not png.hasChunk(IDAT): raise PNGError("no IDAT found")
+  if not png.hasChunk(IHDR): raise PNGFatal("no IHDR found")
+  if not png.hasChunk(IDAT): raise PNGFatal("no IDAT found")
   var header = PNGHeader(png.getChunk(IHDR))
   if header.colorType == LCT_PALETTE and not png.hasChunk(PLTE):
-    raise PNGError("expected PLTE not found")
+    raise PNGFatal("expected PLTE not found")
 
   # IDAT get special treatment because it can appear in multiple chunk
   var idat = PNGData(png.getChunk(IDAT))
-  if not idat.parseChunk(png): raise PNGError("IDAT parse error")
-  if not idat.validateChunk(png): raise PNGError("bad IDAT")
+  if not idat.parseChunk(png): raise PNGFatal("IDAT parse error")
+  if not idat.validateChunk(png): raise PNGFatal("bad IDAT")
   result = png
 
 proc postProcessScanLines[T](png: PNG; header: PNGHeader, w, h: int; input, output: var openArray[T]) =
@@ -1526,14 +1533,14 @@ proc getColorRGBA16[T](mode: PNGColorMode): convertRGBA16[T] =
   elif mode.colorType == LCT_RGB: return RGBA16FromRGB[T]
   elif mode.colorType == LCT_GREY_ALPHA: return RGBA16FromGreyAlpha[T]
   elif mode.colorType == LCT_RGBA: return RGBA16FromRGBA[T]
-  else: raise PNGError("unsupported converter16")
+  else: raise PNGFatal("unsupported converter16")
 
 proc getPixelRGBA16[T](mode: PNGColorMode): pixelRGBA16[T] =
   if mode.colorType == LCT_GREY: return RGBA16ToGrey[T]
   elif mode.colorType == LCT_RGB: return RGBA16ToRGB[T]
   elif mode.colorType == LCT_GREY_ALPHA: return RGBA16ToGreyAlpha[T]
   elif mode.colorType == LCT_RGBA: return RGBA16ToRGBA[T]
-  else: raise PNGError("unsupported pixel16 converter")
+  else: raise PNGFatal("unsupported pixel16 converter")
 
 proc getColorRGBA8[T](mode: PNGColorMode): convertRGBA8[T] =
   if mode.colorType == LCT_GREY:
@@ -1552,7 +1559,7 @@ proc getColorRGBA8[T](mode: PNGColorMode): convertRGBA8[T] =
   elif mode.colorType == LCT_RGBA:
     if mode.bitDepth == 8: return RGBA8FromRGBA8[T]
     else: return RGBA8FromRGBA16[T]
-  else: raise PNGError("unsupported converter8")
+  else: raise PNGFatal("unsupported converter8")
 
 proc getPixelRGBA8[T](mode: PNGColorMode): pixelRGBA8[T] =
   if mode.colorType == LCT_GREY:
@@ -1571,7 +1578,7 @@ proc getPixelRGBA8[T](mode: PNGColorMode): pixelRGBA8[T] =
   elif mode.colorType == LCT_RGBA:
     if mode.bitDepth == 8: return RGBA8ToRGBA8[T]
     else: return RGBA8ToRGBA16[T]
-  else: raise PNGError("unsupported pixel8 converter")
+  else: raise PNGFatal("unsupported pixel8 converter")
 
 proc getConverterRGB[T](mode: PNGColorMode): convertRGBA[T] =
   if mode.colorType == LCT_GREY:
@@ -1590,7 +1597,7 @@ proc getConverterRGB[T](mode: PNGColorMode): convertRGBA[T] =
   elif mode.colorType == LCT_RGBA:
     if mode.bitDepth == 8: return RGBFromRGBA8[T]
     else: return RGBFromRGBA16[T]
-  else: raise PNGError("unsupported RGB converter")
+  else: raise PNGFatal("unsupported RGB converter")
 
 proc getConverterRGBA[T](mode: PNGColorMode): convertRGBA[T] =
   if mode.colorType == LCT_GREY:
@@ -1609,7 +1616,7 @@ proc getConverterRGBA[T](mode: PNGColorMode): convertRGBA[T] =
   elif mode.colorType == LCT_RGBA:
     if mode.bitDepth == 8: return RGBAFromRGBA8[T]
     else: return RGBAFromRGBA16[T]
-  else: raise PNGError("unsupported RGBA converter")
+  else: raise PNGFatal("unsupported RGBA converter")
 
 proc convert*[T](output: var openArray[T], input: openArray[T], modeOut, modeIn: PNGColorMode, numPixels: int) =
   var tree: ColorTree8
@@ -1653,11 +1660,11 @@ proc convert*[T](output: var openArray[T], input: openArray[T], modeOut, modeIn:
       cvt(p, input, px, modeIn)
       pxl(p, output, px, modeOut, tree)
 
-proc convert*(png: PNG, colorType: PNGcolorType, bitDepth: int): PNGResult =
+proc convert*(png: PNG, colorType: PNGColorType, bitDepth: int): PNGResult =
   # TODO: check if this works according to the statement in the documentation: "The converter can convert
   # from greyscale input color type, to 8-bit greyscale or greyscale with alpha"
   # if(colorType notin {LCT_RGB, LCT_RGBA}) and (bitDepth != 8):
-  #   raise PNGError("unsupported color mode conversion")
+  #   raise PNGFatal("unsupported color mode conversion")
 
   let header = PNGHeader(png.getChunk(IHDR))
   let modeIn = png.getColorMode()
@@ -1678,7 +1685,7 @@ proc convert*(png: PNG, colorType: PNGcolorType, bitDepth: int): PNGResult =
     png.pixels.toOpenArray(0, png.pixels.len-1),
     modeOut, modeIn, numPixels)
 
-proc convert*(png: PNG, colorType: PNGcolorType, bitDepth: int, ctl: APNGFrameControl, data: string): APNGFrame =
+proc convert*(png: PNG, colorType: PNGColorType, bitDepth: int, ctl: APNGFrameControl, data: string): APNGFrame =
   let modeIn = png.getColorMode()
   let modeOut = newColorMode(colorType, bitDepth)
   let size = getRawSize(ctl.width, ctl.height, modeOut)
@@ -1707,7 +1714,7 @@ type
     png: PNG
     result: PNGResult
 
-proc processingAPNG(apng: APNG, colorType: PNGcolorType, bitDepth: int) =
+proc processingAPNG(apng: APNG, colorType: PNGColorType, bitDepth: int) =
   let header = PNGHeader(apng.png.getChunk(IHDR))
   var
     actl = APNGAnimationControl(apng.png.getChunk(acTL))
@@ -1736,7 +1743,7 @@ proc processingAPNG(apng: APNG, colorType: PNGcolorType, bitDepth: int) =
       lastChunkType = fdAT
 
   if actl.numFrames == 0 or actl.numFrames != numFrames or actl.numFrames != frameData.len:
-    raise PNGError("animation numFrames error")
+    raise PNGFatal("animation numFrames error")
 
   apng.png.apngPixels = newSeqOfCap[string](numFrames)
 
@@ -1746,9 +1753,9 @@ proc processingAPNG(apng: APNG, colorType: PNGcolorType, bitDepth: int) =
   if apng.png.firstFrameIsDefaultImage:
     let ctl = frameControl[0]
     if ctl.width != header.width or ctl.height != header.height:
-      raise PNGError("animation control error: dimension")
+      raise PNGFatal("animation control error: dimension")
     if ctl.xOffset != 0 or ctl.xOffset != 0:
-      raise PNGError("animation control error: offset")
+      raise PNGFatal("animation control error: offset")
 
     if apng.result != nil:
       var frame = new(APNGFrame)
@@ -1772,9 +1779,9 @@ proc processingAPNG(apng: APNG, colorType: PNGcolorType, bitDepth: int) =
         frame.data = apng.png.apngPixels[^1]
         apng.result.frames.add frame
 
-proc decodePNG*(s: Stream, colorType: PNGcolorType, bitDepth: int, settings = PNGDecoder(nil)): PNGResult =
+proc decodePNG*(s: Stream, colorType: PNGColorType, bitDepth: int, settings = PNGDecoder(nil)): PNGResult =
   if not bitDepthAllowed(colorType, bitDepth):
-    raise PNGError("colorType and bitDepth combination not allowed")
+    raise PNGFatal("colorType and bitDepth combination not allowed")
 
   var png = s.parsePNG(settings)
   png.postProcessScanLines()
@@ -1809,7 +1816,7 @@ when not defined(js):
       if s == nil: return nil
       result = s.decodePNG(colorType, bitDepth, settings)
       s.close()
-    except:
+    except PNGError, IOError, NZError:
       debugEcho getCurrentExceptionMsg()
       result = nil
 
@@ -1824,7 +1831,7 @@ proc decodePNG32*(input: string, settings = PNGDecoder(nil)): PNGResult =
     var s = newStringStream(input)
     if s == nil: return nil
     result = s.decodePNG(LCT_RGBA, 8, settings)
-  except:
+  except PNGError, IOError, NZError:
     debugEcho getCurrentExceptionMsg()
     result = nil
 
@@ -1833,7 +1840,7 @@ proc decodePNG24*(input: string, settings = PNGDecoder(nil)): PNGResult =
     var s = newStringStream(input)
     if s == nil: return nil
     result = s.decodePNG(LCT_RGB, 8, settings)
-  except:
+  except PNGError, IOError, NZError:
     debugEcho getCurrentExceptionMsg()
     result = nil
 
@@ -2053,7 +2060,7 @@ method writeChunk(chunk: PNGTrans, png: PNG): bool =
       chunk.writeInt16(chunk.keyG)
       chunk.writeInt16(chunk.keyB)
   else:
-    raise PNGError("tRNS chunk not allowed for other color models")
+    raise PNGFatal("tRNS chunk not allowed for other color models")
   result = true
 
 method writeChunk(chunk: PNGBackground, png: PNG): bool =
@@ -2123,7 +2130,7 @@ method writeChunk(chunk: PNGSPalette, png: PNG): bool =
   #else: estimate += chunk.palette.len * 10
   chunk.writeString chunk.paletteName
   chunk.writeByte 0 #null separator
-  if chunk.sampleDepth notin {8, 16}: raise PNGError("palette sample depth error")
+  if chunk.sampleDepth notin {8, 16}: raise PNGFatal("palette sample depth error")
   chunk.writeByte chunk.sampleDepth
 
   if chunk.sampleDepth == 8:
@@ -2462,7 +2469,7 @@ proc filter[T](output: var openArray[T], input: openArray[T], w, h: int, modeOut
     (modeOut.colorType == LCT_PALETTE or modeOut.bitDepth < 8): strategy = LFS_ZERO
 
   if bpp == 0:
-    raise PNGError("invalid color type")
+    raise PNGFatal("invalid color type")
 
   case strategy
   of LFS_ZERO: filterZero(output, input, w, h, bpp)
@@ -2690,31 +2697,31 @@ proc encoderCore(png: PNG) =
   var sequenceNumber = 0
 
   if not bitDepthAllowed(modeIn.colorType, modeIn.bitDepth):
-    raise PNGError("modeIn colorType and bitDepth combination not allowed")
+    raise PNGFatal("modeIn colorType and bitDepth combination not allowed")
 
   if not bitDepthAllowed(modeOut.colorType, modeOut.bitDepth):
-    raise PNGError("modeOut colorType and bitDepth combination not allowed")
+    raise PNGFatal("modeOut colorType and bitDepth combination not allowed")
 
   if(modeOut.colorType == LCT_PALETTE or state.forcePalette) and
     (modeOut.paletteSize == 0 or modeOut.paletteSize > 256):
-    raise PNGError("invalid palette size, it is only allowed to be 1-256")
+    raise PNGFatal("invalid palette size, it is only allowed to be 1-256")
 
   if state.filterStrategy == LFS_PREDEFINED:
     if state.predefinedFilters.len < png.width:
-      raise PNGError("predefinedFilters contains not enough filterType compared to image height")
+      raise PNGFatal("predefinedFilters contains not enough filterType compared to image height")
 
   let inputSize = getRawSize(png.width, png.height, modeIn)
   if png.pixels.len < inputSize:
-    raise PNGError("not enough input to encode")
+    raise PNGFatal("not enough input to encode")
 
   if state.autoConvert:
     png.autoChooseColor(modeOut, modeIn)
 
   if state.interlaceMethod notin {IM_NONE, IM_INTERLACED}:
-    raise PNGError("unexisting interlace mode")
+    raise PNGFatal("unexisting interlace mode")
 
   if not bitDepthAllowed(modeOut.colorType, modeOut.bitDepth):
-    raise PNGError("colorType and bitDepth combination not allowed")
+    raise PNGFatal("colorType and bitDepth combination not allowed")
 
   if not png.isAPNG: png.apngPixels = @[""]
   shallowCopy(png.apngPixels[0], png.pixels)
@@ -2747,9 +2754,9 @@ proc encoderCore(png: PNG) =
 
   if png.isAPNG:
     if png.apngPixels.len != png.apngChunks.len:
-      raise PNGError("APNG encoder frame error")
+      raise PNGFatal("APNG encoder frame error")
     if png.apngPixels.len == 0:
-      raise PNGError("APNG encoder no frame")
+      raise PNGFatal("APNG encoder no frame")
     png.addChunkacTL(png.apngPixels.len, state.numPlays)
     if png.firstFrameIsDefaultImage:
       png.addChunkfcTL(APNGFrameControl(png.apngChunks[0]), sequenceNumber)
@@ -2802,9 +2809,9 @@ proc encodePNG*(input: string, w, h: int, settings = PNGEncoder(nil)): PNG =
   png.encoderCore()
   result = png
 
-proc encodePNG*(input: string, colorType: PNGcolorType, bitDepth, w, h: int, settings = PNGEncoder(nil)): PNG =
+proc encodePNG*(input: string, colorType: PNGColorType, bitDepth, w, h: int, settings = PNGEncoder(nil)): PNG =
   if not bitDepthAllowed(colorType, bitDepth):
-    raise PNGError("colorType and bitDepth combination not allowed")
+    raise PNGFatal("colorType and bitDepth combination not allowed")
 
   var state: PNGEncoder
   if settings == nil: state = makePNGEncoder()
@@ -2824,8 +2831,8 @@ proc writeChunks*(png: PNG, s: Stream) =
   s.write PNGSignature
 
   for chunk in png.chunks:
-    if not chunk.validateChunk(png): raise PNGError("combine chunk validation error")
-    if not chunk.writeChunk(png): raise PNGError("combine chunk write error")
+    if not chunk.validateChunk(png): raise PNGFatal("combine chunk validation error")
+    if not chunk.writeChunk(png): raise PNGFatal("combine chunk write error")
     chunk.length = chunk.data.len
     chunk.crc = crc32(crc32(0, $chunk.chunkType), chunk.data)
 
@@ -2835,14 +2842,14 @@ proc writeChunks*(png: PNG, s: Stream) =
     s.writeInt32BE cast[int](chunk.crc)
 
 when not defined(js):
-  proc savePNG*(fileName, input: string, colorType: PNGcolorType, bitDepth, w, h: int): bool =
+  proc savePNG*(fileName, input: string, colorType: PNGColorType, bitDepth, w, h: int): bool =
     try:
       var png = encodePNG(input, colorType, bitDepth, w, h)
       var s = newFileStream(fileName, fmWrite)
       png.writeChunks s
       s.close()
       result = true
-    except:
+    except PNGError, IOError, NZError:
       debugEcho getCurrentExceptionMsg()
       result = false
 
@@ -2852,7 +2859,7 @@ when not defined(js):
   proc savePNG24*(fileName, input: string, w, h: int): bool =
     result = savePNG(fileName, input, LCT_RGB, 8, w, h)
 
-proc prepareAPNG*(colorType: PNGcolorType, bitDepth, numPlays: int, settings = PNGEncoder(nil)): PNG =
+proc prepareAPNG*(colorType: PNGColorType, bitDepth, numPlays: int, settings = PNGEncoder(nil)): PNG =
   var state: PNGEncoder
   if settings == nil: state = makePNGEncoder()
   else: state = settings
@@ -2922,7 +2929,7 @@ proc encodeAPNG*(png: PNG): string =
     var s = newStringStream()
     png.writeChunks s
     result = s.data
-  except:
+  except PNGError, IOError, NZError:
     debugEcho getCurrentExceptionMsg()
     result = ""
 
@@ -2934,7 +2941,7 @@ when not defined(js):
       png.writeChunks s
       s.close()
       result = true
-    except:
+    except PNGError, IOError, NZError:
       debugEcho getCurrentExceptionMsg()
       result = false
 
