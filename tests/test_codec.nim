@@ -560,7 +560,7 @@ proc testColorKeyConvert() =
 
   var png = s.decodePNG()
   var info = png.getInfo()
-  var image2 = png.convert(LCT_RGBA, 8)
+  var image2 = convert[string](png, LCT_RGBA, 8)
 
   assertEquals(32 , info.width)
   assertEquals(32 , info.height)
@@ -601,7 +601,7 @@ proc colorConvertTest(bits_in: string, colorType_in: PNGcolorType, bitDepth_in: 
   let modeIn = newColorMode(colorType_in, bitDepth_in)
   let modeOut = newColorMode(colorType_out, bitDepth_out)
   var actual = newString(expected.len)
-  convert(
+  convertImpl(
     actual.toOpenArray(0, actual.len-1),
     image.toOpenArray(0, image.len-1),
     modeOut, modeIn, 1)
@@ -710,9 +710,9 @@ proc testColorConvert2() =
       modeOut.colorType = cmb.colorType
       modeOut.bitDepth = cmb.bitDepth
 
-      convert(input.toOpenArray(0, input.len-1), eight.toOpenArray(0, eight.len-1), modeIn, mode_8, 3 * 3)
-      convert(output.toOpenArray(0, output.len-1), input.toOpenArray(0, input.len-1), modeOut, modeIn, 3 * 3) #Test input to output type
-      convert(eight2.toOpenArray(0, eight2.len-1), output.toOpenArray(0, output.len-1), mode_8, modeOut, 3 * 3)
+      convertImpl(input.toOpenArray(0, input.len-1), eight.toOpenArray(0, eight.len-1), modeIn, mode_8, 3 * 3)
+      convertImpl(output.toOpenArray(0, output.len-1), input.toOpenArray(0, input.len-1), modeOut, modeIn, 3 * 3) #Test input to output type
+      convertImpl(eight2.toOpenArray(0, eight2.len-1), output.toOpenArray(0, output.len-1), mode_8, modeOut, 3 * 3)
       assertEquals(eight, eight2)
 
 #tests that there are no crashes with auto color chooser in case of palettes with translucency etc...
@@ -759,7 +759,7 @@ proc doRGBAToPaletteTest(palette: openArray[int], expectedType = LCT_PALETTE) =
   s.setPosition 0
   var png2 = s.decodePNG()
   var info = png2.getInfo()
-  var image2 = png2.convert(LCT_RGBA, 8)
+  var image2 = convert[string](png2, LCT_RGBA, 8)
 
   assertEquals(image2.data, image)
 
@@ -908,7 +908,7 @@ proc testAutoColorModel(colors: string, inbitDepth: int, colorType: PNGcolorType
   s.setPosition 0
   var raw = s.decodePNG()
   var info = raw.getInfo()
-  var decoded = raw.convert(LCT_RGBA, inbitdepth)
+  var decoded = convert[string](raw, LCT_RGBA, inbitdepth)
 
   assertEquals(num , info.width)
   assertEquals(1 , info.height)
