@@ -50,7 +50,7 @@ proc convert(dir: string) =
 
 proc generateAPNG() =
   const numFrames = 7
-  var frames: array[numFrames, PNGResult]
+  var frames: array[numFrames, PNGResult[string]]
 
   for i in 0..<numFrames:
     frames[i] = loadPNG24("tests" / "apng" / "raw" / "frame" & $i & ".png")
