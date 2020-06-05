@@ -560,7 +560,7 @@ proc testColorKeyConvert() =
 
   var png = s.decodePNG()
   var info = png.getInfo()
-  var image2 = convert[string](png, LCT_RGBA, 8)
+  var image2 = convert(png, LCT_RGBA, 8)
 
   assertEquals(32 , info.width)
   assertEquals(32 , info.height)
@@ -759,7 +759,7 @@ proc doRGBAToPaletteTest(palette: openArray[int], expectedType = LCT_PALETTE) =
   s.setPosition 0
   var png2 = s.decodePNG()
   var info = png2.getInfo()
-  var image2 = convert[string](png2, LCT_RGBA, 8)
+  var image2 = convert(png2, LCT_RGBA, 8)
 
   assertEquals(image2.data, image)
 
@@ -908,7 +908,7 @@ proc testAutoColorModel(colors: string, inbitDepth: int, colorType: PNGcolorType
   s.setPosition 0
   var raw = s.decodePNG()
   var info = raw.getInfo()
-  var decoded = convert[string](raw, LCT_RGBA, inbitdepth)
+  var decoded = convert(raw, LCT_RGBA, inbitdepth)
 
   assertEquals(num , info.width)
   assertEquals(1 , info.height)
