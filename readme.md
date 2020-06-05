@@ -1,6 +1,10 @@
 # nimPNG (PNG + APNG)
 Portable Network Graphics Encoder and Decoder written in Nim store lossless image with good compression.
-Since version 0.2.0 also support Animated PNG!
+
+Notable releases:
+- 0.2.0 support Animated PNG!
+- 0.2.6 compile with --gc:arc.
+- 0.3.0 [new set of API](apidoc.md) using seq[uint8] and new method to handle error.
 
 [![Build Status (Travis)](https://img.shields.io/travis/jangko/nimPNG/master.svg?label=Linux%20/%20macOS "Linux/macOS build status (Travis)")](https://travis-ci.org/jangko/nimPNG)
 [![Build status](https://ci.appveyor.com/api/projects/status/7ap5r5a41t7ea04p?svg=true)](https://ci.appveyor.com/project/jangko/nimpng)
@@ -9,11 +13,11 @@ Since version 0.2.0 also support Animated PNG!
 
 all PNG standard color mode are supported:
 
-  -  LCT_GREY = 0,       # greyscale: 1,2,4,8,16 bit
-  -  LCT_RGB = 2,        # RGB: 8,16 bit
-  -  LCT_PALETTE = 3,    # palette: 1,2,4,8 bit
-  -  LCT_GREY_ALPHA = 4, # greyscale with alpha: 8,16 bit
-  -  LCT_RGBA = 6        # RGB with alpha: 8,16 bit
+- LCT_GREY = 0,       # greyscale: 1,2,4,8,16 bit
+- LCT_RGB = 2,        # RGB: 8,16 bit
+- LCT_PALETTE = 3,    # palette: 1,2,4,8 bit
+- LCT_GREY_ALPHA = 4, # greyscale with alpha: 8,16 bit
+- LCT_RGBA = 6        # RGB with alpha: 8,16 bit
 
 both interlaced and non-interlaced mode supported
 
@@ -25,17 +29,17 @@ unknown chunks will be handled properly
 
 the following chunks are supported (generated/interpreted) by both encoder and decoder:
 
--    IHDR: header information
--    PLTE: color palette
--    IDAT: pixel data
--    IEND: the final chunk
--    tRNS: transparency for palettized images
--    tEXt: textual information
--    zTXt: compressed textual information
--    iTXt: international textual information
--    bKGD: suggested background color
--    pHYs: physical dimensions
--    tIME: modification time
+- IHDR: header information
+- PLTE: color palette
+- IDAT: pixel data
+- IEND: the final chunk
+- tRNS: transparency for palettized images
+- tEXt: textual information
+- zTXt: compressed textual information
+- iTXt: international textual information
+- bKGD: suggested background color
+- pHYs: physical dimensions
+- tIME: modification time
 
 the following chunks are parsed correctly, but not used by decoder:
 cHRM, gAMA, iCCP, sRGB, sBIT, hIST, sPLT
@@ -52,7 +56,7 @@ Supported color conversions:
 - streaming for progressive loading
 
 ## Basic Usage
-```nimrod
+```Nim
 import nimPNG
 
 let png = loadPNG32("image.png")
@@ -66,7 +70,7 @@ let png = loadPNG32("image.png")
 
 if you already have the whole file in memory:
 
-```nimrod
+```Nim
 let png = decodePNG32(raw_bytes)
 #will do the same as above
 ```
