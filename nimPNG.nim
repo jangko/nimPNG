@@ -414,10 +414,7 @@ proc bitDepthAllowed(colorType: PNGColorType, bitDepth: int): bool =
   of LCT_PALETTE: result = bitDepth in {1, 2, 4, 8}
   else: result = bitDepth in {8, 16}
 
-method validateChunk(chunk: PNGChunk, png: PNG): bool {.base, gcsafe.} = true
-method parseChunk(chunk: PNGChunk, png: PNG): bool {.base, gcsafe.} = true
-
-method validateChunk(header: PNGHeader, png: PNG): bool =
+proc validateChunk(header: PNGHeader, png: PNG): bool =
   if header.width < 1 or header.width > 0x7FFFFFFF:
     raise PNGFatal("image width not allowed: " & $header.width)
   if header.height < 1 or header.height > 0x7FFFFFFF:
@@ -434,7 +431,7 @@ method validateChunk(header: PNGHeader, png: PNG): bool =
     raise PNGFatal("unsupported interlace method")
   result = true
 
-method parseChunk(chunk: PNGHeader, png: PNG): bool =
+proc parseChunk(chunk: PNGHeader, png: PNG): bool =
   if chunk.length != 13: return false
   chunk.width = chunk.readInt32()
   chunk.height = chunk.readInt32()
@@ -445,7 +442,7 @@ method parseChunk(chunk: PNGHeader, png: PNG): bool =
   chunk.interlaceMethod = PNGInterlace(chunk.readByte())
   result = true
 
-method parseChunk(chunk: PNGPalette, png: PNG): bool =
+proc parseChunk(chunk: PNGPalette, png: PNG): bool =
   let paletteSize = chunk.length div 3
   if paletteSize > 256: raise PNGFatal("palette size to big")
   newSeq(chunk.palette, paletteSize)
@@ -485,7 +482,7 @@ proc getRawSize(w, h: int, color: PNGColorMode): int =
 #proc getRawSizeLct(w, h: int, colorType: PNGColorType, bitDepth: int): int =
 #  result = (w * h * LCTBPP(colorType, bitDepth) + 7) div 8
 
-method validateChunk(chunk: PNGData, png: PNG): bool =
+proc validateChunk(chunk: PNGData, png: PNG): bool =
   var header = PNGHeader(png.getChunk(IHDR))
 
   var predict = 0
@@ -507,13 +504,13 @@ method validateChunk(chunk: PNGData, png: PNG): bool =
   if chunk.idat.len != predict: raise PNGFatal("Decompress size doesn't match predict")
   result = true
 
-method parseChunk(chunk: PNGData, png: PNG): bool =
+proc parseChunk(chunk: PNGData, png: PNG): bool =
   var nz = nzInflateInit(chunk.data)
   nz.ignoreAdler32 = PNGDecoder(png.settings).ignoreAdler32
   chunk.idat = zlib_decompress(nz)
   result = true
 
-method parseChunk(chunk: PNGTrans, png: PNG): bool =
+proc parseChunk(chunk: PNGTrans, png: PNG): bool =
   var header = PNGHeader(png.getChunk(IHDR))
   if header == nil: return false
 
@@ -542,7 +539,7 @@ method parseChunk(chunk: PNGTrans, png: PNG): bool =
 
   result = true
 
-method parseChunk(chunk: PNGBackground, png: PNG): bool =
+proc parseChunk(chunk: PNGBackground, png: PNG): bool =
   var header = PNGHeader(png.getChunk(IHDR))
   if header.colorType == LCT_PALETTE:
     # error: this chunk must be 1 byte for indexed color image
@@ -571,7 +568,7 @@ proc initChunk(chunk: PNGChunk, chunkType: PNGChunkType, data: string, crc: uint
   chunk.data = data
   chunk.pos = 0
 
-method validateChunk(chunk: PNGTime, png: PNG): bool =
+proc validateChunk(chunk: PNGTime, png: PNG): bool =
   if chunk.year < 0 or chunk.year > 65535: raise PNGFatal("invalid year range[0..65535]")
   if chunk.month < 1 or chunk.month > 12: raise PNGFatal("invalid month range[1..12]")
   if chunk.day < 1 or chunk.day > 31: raise PNGFatal("invalid day range[1..32]")
@@ -581,7 +578,7 @@ method validateChunk(chunk: PNGTime, png: PNG): bool =
   if chunk.second < 0 or chunk.second > 60: raise PNGFatal("invalid second range[0..60]")
   result = true
 
-method parseChunk(chunk: PNGTime, png: PNG): bool =
+proc parseChunk(chunk: PNGTime, png: PNG): bool =
   if chunk.length != 7: raise PNGFatal("tIME must be 7 bytes")
   chunk.year   = chunk.readInt16()
   chunk.month  = chunk.readByte()
@@ -591,19 +588,19 @@ method parseChunk(chunk: PNGTime, png: PNG): bool =
   chunk.second = chunk.readByte()
   result = true
 
-method parseChunk(chunk: PNGPhys, png: PNG): bool =
+proc parseChunk(chunk: PNGPhys, png: PNG): bool =
   if chunk.length != 9: raise PNGFatal("pHYs must be 9 bytes")
   chunk.physX = chunk.readInt32()
   chunk.physY = chunk.readInt32()
   chunk.unit  = chunk.readByte()
   result = true
 
-method validateChunk(chunk: PNGText, png: PNG): bool =
+proc validateChunk(chunk: PNGText, png: PNG): bool =
   if(chunk.keyword.len < 1) or (chunk.keyword.len > 79):
     raise PNGFatal("keyword too short or too long")
   result = true
 
-method parseChunk(chunk: PNGText, png: PNG): bool =
+proc parseChunk(chunk: PNGText, png: PNG): bool =
   var len = 0
   while(len < chunk.length) and (chunk.data[len] != chr(0)): inc len
   if(len < 1) or (len > 79): raise PNGFatal("keyword too short or too long")
@@ -613,19 +610,19 @@ method parseChunk(chunk: PNGText, png: PNG): bool =
   chunk.text = chunk.data.substr(textBegin)
   result = true
 
-method validateChunk(chunk: PNGZtxt, png: PNG): bool =
+proc validateChunk(chunk: PNGZtxt, png: PNG): bool =
   if(chunk.keyword.len < 1) or (chunk.keyword.len > 79):
     raise PNGFatal("keyword too short or too long")
   result = true
 
-method parseChunk(chunk: PNGZtxt, png: PNG): bool =
+proc parseChunk(chunk: PNGZtxt, png: PNG): bool =
   var len = 0
   while(len < chunk.length) and (chunk.data[len] != chr(0)): inc len
   if(len < 1) or (len > 79): raise PNGFatal("keyword too short or too long")
   chunk.keyword = chunk.data.substr(0, len)
 
-  var compMethod = ord(chunk.data[len + 1]) # skip keyword null terminator
-  if compMethod != 0: raise PNGFatal("unsupported comp method")
+  var compproc = ord(chunk.data[len + 1]) # skip keyword null terminator
+  if compproc != 0: raise PNGFatal("unsupported comp proc")
 
   var nz = nzInflateInit(chunk.data.substr(len + 2))
   nz.ignoreAdler32 = PNGDecoder(png.settings).ignoreAdler32
@@ -633,12 +630,12 @@ method parseChunk(chunk: PNGZtxt, png: PNG): bool =
 
   result = true
 
-method validateChunk(chunk: PNGItxt, png: PNG): bool =
+proc validateChunk(chunk: PNGItxt, png: PNG): bool =
   if(chunk.keyword.len < 1) or (chunk.keyword.len > 79):
     raise PNGFatal("keyword too short or too long")
   result = true
 
-method parseChunk(chunk: PNGItxt, png: PNG): bool =
+proc parseChunk(chunk: PNGItxt, png: PNG): bool =
   if chunk.length < 5: raise PNGFatal("iTXt len too short")
 
   var len = 0
@@ -649,8 +646,8 @@ method parseChunk(chunk: PNGItxt, png: PNG): bool =
   chunk.keyword = chunk.data.substr(0, len)
 
   var compressed = ord(chunk.data[len + 1]) == 1 # skip keyword null terminator
-  var compMethod = ord(chunk.data[len + 2])
-  if compMethod != 0: raise PNGFatal("unsupported comp method")
+  var compproc = ord(chunk.data[len + 2])
+  if compproc != 0: raise PNGFatal("unsupported comp proc")
 
   len = 0
   var i = len + 3
@@ -677,12 +674,12 @@ method parseChunk(chunk: PNGItxt, png: PNG): bool =
     chunk.text = chunk.data.substr(textBegin)
   result = true
 
-method parseChunk(chunk: PNGGamma, png: PNG): bool =
+proc parseChunk(chunk: PNGGamma, png: PNG): bool =
   if chunk.length != 4: raise PNGFatal("invalid gAMA length")
   chunk.gamma = chunk.readInt32()
   result = true
 
-method parseChunk(chunk: PNGChroma, png: PNG): bool =
+proc parseChunk(chunk: PNGChroma, png: PNG): bool =
   if chunk.length != 32: raise PNGFatal("invalid Chroma length")
   chunk.whitePointX = chunk.readInt32()
   chunk.whitePointY = chunk.readInt32()
@@ -694,31 +691,31 @@ method parseChunk(chunk: PNGChroma, png: PNG): bool =
   chunk.blueY = chunk.readInt32()
   result = true
 
-method parseChunk(chunk: PNGStandarRGB, png: PNG): bool =
+proc parseChunk(chunk: PNGStandarRGB, png: PNG): bool =
   if chunk.length != 1: raise PNGFatal("invalid sRGB length")
   chunk.renderingIntent = chunk.readByte()
   result = true
 
-method validateChunk(chunk: PNGICCProfile, png: PNG): bool =
+proc validateChunk(chunk: PNGICCProfile, png: PNG): bool =
   if(chunk.profileName.len < 1) or (chunk.profileName.len > 79):
     raise PNGFatal("keyword too short or too long")
   result = true
 
-method parseChunk(chunk: PNGICCProfile, png: PNG): bool =
+proc parseChunk(chunk: PNGICCProfile, png: PNG): bool =
   var len = 0
   while(len < chunk.length) and (chunk.data[len] != chr(0)): inc len
   if(len < 1) or (len > 79): raise PNGFatal("keyword too short or too long")
   chunk.profileName = chunk.data.substr(0, len)
 
-  var compMethod = ord(chunk.data[len + 1]) # skip keyword null terminator
-  if compMethod != 0: raise PNGFatal("unsupported comp method")
+  var compproc = ord(chunk.data[len + 1]) # skip keyword null terminator
+  if compproc != 0: raise PNGFatal("unsupported comp proc")
 
   var nz = nzInflateInit(chunk.data.substr(len + 2))
   nz.ignoreAdler32 = PNGDecoder(png.settings).ignoreAdler32
   chunk.profile = zlib_decompress(nz)
   result = true
 
-method parseChunk(chunk: PNGSPalette, png: PNG): bool =
+proc parseChunk(chunk: PNGSPalette, png: PNG): bool =
   var len = 0
   while(len < chunk.length) and (chunk.data[len] != chr(0)): inc len
   if(len < 1) or (len > 79): raise PNGFatal("keyword too short or too long")
@@ -751,7 +748,7 @@ method parseChunk(chunk: PNGSPalette, png: PNG): bool =
 
   result = true
 
-method parseChunk(chunk: PNGHist, png: PNG): bool =
+proc parseChunk(chunk: PNGHist, png: PNG): bool =
   if not png.hasChunk(PLTE): raise PNGFatal("Histogram need PLTE")
   var plte = PNGPalette(png.getChunk(PLTE))
   if plte.palette.len != (chunk.length div 2): raise PNGFatal("invalid histogram length")
@@ -760,7 +757,7 @@ method parseChunk(chunk: PNGHist, png: PNG): bool =
     chunk.histogram[i] = chunk.readInt16()
   result = true
 
-method parseChunk(chunk: PNGSbit, png: PNG): bool =
+proc parseChunk(chunk: PNGSbit, png: PNG): bool =
   let header = PNGHEader(png.getChunk(IHDR))
   var expectedLen = 0
 
@@ -778,12 +775,12 @@ method parseChunk(chunk: PNGSbit, png: PNG): bool =
 
   result = true
 
-method parseChunk(chunk: APNGAnimationControl, png: PNG): bool =
+proc parseChunk(chunk: APNGAnimationControl, png: PNG): bool =
   chunk.numFrames = chunk.readInt32()
   chunk.numPlays = chunk.readInt32()
   result = true
 
-method parseChunk(chunk: APNGFrameControl, png: PNG): bool =
+proc parseChunk(chunk: APNGFrameControl, png: PNG): bool =
   chunk.sequenceNumber = chunk.readInt32()
   chunk.width = chunk.readInt32()
   chunk.height = chunk.readInt32()
@@ -795,7 +792,7 @@ method parseChunk(chunk: APNGFrameControl, png: PNG): bool =
   chunk.blendOp = chunk.readByte().APNG_BLEND_OP
   result = true
 
-method validateChunk(chunk: APNGFrameControl, png: PNG): bool =
+proc validateChunk(chunk: APNGFrameControl, png: PNG): bool =
   let header = PNGHEader(png.getChunk(IHDR))
   result = true
   result = result and (chunk.xOffset >= 0)
@@ -805,7 +802,7 @@ method validateChunk(chunk: APNGFrameControl, png: PNG): bool =
   result = result and (chunk.xOffset + chunk.width <= header.width)
   result = result and (chunk.yOffset + chunk.height <= header.height)
 
-method parseChunk(chunk: APNGFrameData, png: PNG): bool =
+proc parseChunk(chunk: APNGFrameData, png: PNG): bool =
   chunk.sequenceNumber = chunk.readInt32()
   chunk.frameDataPos = chunk.pos
   result = true
@@ -872,6 +869,42 @@ proc makePNGDecoder*(): PNGDecoder =
   s.ignoreAdler32 = false
   result = s
 
+proc parseChunk(chunk: PNGChunk, png: PNG): bool =
+  case chunk.chunkType
+  of IHDR: result = parseChunk(PNGHeader(chunk), png)
+  of PLTE: result = parseChunk(PNGPalette(chunk), png)
+  of IDAT: result = parseChunk(PNGData(chunk), png)
+  of tRNS: result = parseChunk(PNGTrans(chunk), png)
+  of bKGD: result = parseChunk(PNGBackground(chunk), png)
+  of tIME: result = parseChunk(PNGTime(chunk), png)
+  of pHYs: result = parseChunk(PNGPhys(chunk), png)
+  of tEXt: result = parseChunk(PNGTExt(chunk), png)
+  of zTXt: result = parseChunk(PNGZtxt(chunk), png)
+  of iTXt: result = parseChunk(PNGItxt(chunk), png)
+  of gAMA: result = parseChunk(PNGGamma(chunk), png)
+  of cHRM: result = parseChunk(PNGChroma(chunk), png)
+  of iCCP: result = parseChunk(PNGICCProfile(chunk), png)
+  of sRGB: result = parseChunk(PNGStandarRGB(chunk), png)
+  of sPLT: result = parseChunk(PNGSPalette(chunk), png)
+  of hIST: result = parseChunk(PNGHist(chunk), png)
+  of sBIT: result = parseChunk(PNGSbit(chunk), png)
+  of acTL: result = parseChunk(APNGAnimationControl(chunk), png)
+  of fcTL: result = parseChunk(APNGFrameControl(chunk), png)
+  of fdAT: result = parseChunk(APNGFrameData(chunk), png)
+  else: result = true
+
+proc validateChunk(chunk: PNGChunk, png: PNG): bool =
+  case chunk.chunkType
+  of IHDR: result = validateChunk(PNGHeader(chunk), png)
+  of IDAT: result = validateChunk(PNGData(chunk), png)
+  of tIME: result = validateChunk(PNGTime(chunk), png)
+  of tEXt: result = validateChunk(PNGTExt(chunk), png)
+  of zTXt: result = validateChunk(PNGZtxt(chunk), png)
+  of iTXt: result = validateChunk(PNGItxt(chunk), png)
+  of iCCP: result = validateChunk(PNGICCProfile(chunk), png)
+  of fcTL: result = validateChunk(APNGFrameControl(chunk), png)
+  else: result = true
+
 proc parsePNG[T](s: Stream, settings: PNGDecoder): PNG[T] =
   var png: PNG[T]
   new(png)
@@ -936,7 +969,7 @@ proc postProcessScanLines[T](png: PNG; header: PNGHeader, w, h: int; input, outp
       # we can immediatly filter into the out buffer, no other steps needed
       unfilter(output, input, w, h, bpp)
 
-  else: # interlace_method is 1 (Adam7)
+  else: # interlace_proc is 1 (Adam7)
     var pass: PNGPass
     adam7PassValues(pass, w, h, bpp)
 
@@ -2070,9 +2103,7 @@ proc writeInt32BE(s: Stream, value: int) =
   bigEndian32(addr(tmp), addr(val))
   s.write(tmp)
 
-method writeChunk(chunk: PNGChunk, png: PNG): bool {.base, gcsafe.} = true
-
-method writeChunk(chunk: PNGHeader, png: PNG): bool =
+proc writeChunk(chunk: PNGHeader, png: PNG): bool =
   #estimate 13 bytes
   chunk.writeInt32(chunk.width)
   chunk.writeInt32(chunk.height)
@@ -2083,7 +2114,7 @@ method writeChunk(chunk: PNGHeader, png: PNG): bool =
   chunk.writeByte(int(chunk.interlaceMethod))
   result = true
 
-method writeChunk(chunk: PNGPalette, png: PNG): bool =
+proc writeChunk(chunk: PNGPalette, png: PNG): bool =
   #estimate 3 * palette.len
   for px in chunk.palette:
     chunk.writeByte(int(px.r))
@@ -2091,7 +2122,7 @@ method writeChunk(chunk: PNGPalette, png: PNG): bool =
     chunk.writeByte(int(px.b))
   result = true
 
-method writeChunk(chunk: PNGTrans, png: PNG): bool =
+proc writeChunk(chunk: PNGTrans, png: PNG): bool =
   var header = PNGHeader(png.getChunk(IHDR))
 
   if header.colorType == LCT_PALETTE:
@@ -2116,7 +2147,7 @@ method writeChunk(chunk: PNGTrans, png: PNG): bool =
     raise PNGFatal("tRNS chunk not allowed for other color models")
   result = true
 
-method writeChunk(chunk: PNGBackground, png: PNG): bool =
+proc writeChunk(chunk: PNGBackground, png: PNG): bool =
   var header = PNGHeader(png.getChunk(IHDR))
   if header.colorType == LCT_PALETTE:
     #estimate 1 bytes
@@ -2131,7 +2162,7 @@ method writeChunk(chunk: PNGBackground, png: PNG): bool =
     chunk.writeInt16(chunk.bkgdB)
   result = true
 
-method writeChunk(chunk: PNGTime, png: PNG): bool =
+proc writeChunk(chunk: PNGTime, png: PNG): bool =
   #estimate 7 bytes
   chunk.writeInt16(chunk.year)
   chunk.writeByte(chunk.month)
@@ -2141,26 +2172,26 @@ method writeChunk(chunk: PNGTime, png: PNG): bool =
   chunk.writeByte(chunk.second)
   result = true
 
-method writeChunk(chunk: PNGPhys, png: PNG): bool =
+proc writeChunk(chunk: PNGPhys, png: PNG): bool =
   #estimate 9 bytes
   chunk.writeInt32(chunk.physX)
   chunk.writeInt32(chunk.physY)
   chunk.writeByte(chunk.unit)
   result = true
 
-method writeChunk(chunk: PNGText, png: PNG): bool =
+proc writeChunk(chunk: PNGText, png: PNG): bool =
   #estimate chunk.keyword.len + chunk.text.len + 1
   chunk.writeString chunk.keyword
   chunk.writeByte 0 #null separator
   chunk.writeString chunk.text
   result = true
 
-method writeChunk(chunk: PNGGamma, png: PNG): bool =
+proc writeChunk(chunk: PNGGamma, png: PNG): bool =
   #estimate 4 bytes
   chunk.writeInt32(chunk.gamma)
   result = true
 
-method writeChunk(chunk: PNGChroma, png: PNG): bool =
+proc writeChunk(chunk: PNGChroma, png: PNG): bool =
   #estimate 8 * 4 bytes
   chunk.writeInt32(chunk.whitePointX)
   chunk.writeInt32(chunk.whitePointY)
@@ -2172,12 +2203,12 @@ method writeChunk(chunk: PNGChroma, png: PNG): bool =
   chunk.writeInt32(chunk.blueY)
   result = true
 
-method writeChunk(chunk: PNGStandarRGB, png: PNG): bool =
+proc writeChunk(chunk: PNGStandarRGB, png: PNG): bool =
   #estimate 1 byte
   chunk.writeByte(chunk.renderingIntent)
   result = true
 
-method writeChunk(chunk: PNGSPalette, png: PNG): bool =
+proc writeChunk(chunk: PNGSPalette, png: PNG): bool =
   #estimate chunk.paletteName.len + 2
   #if sampleDepth == 8: estimate += chunk.palette.len * 6
   #else: estimate += chunk.palette.len * 10
@@ -2202,29 +2233,27 @@ method writeChunk(chunk: PNGSPalette, png: PNG): bool =
       chunk.writeInt16(p.frequency)
   result = true
 
-method writeChunk(chunk: PNGHist, png: PNG): bool =
+proc writeChunk(chunk: PNGHist, png: PNG): bool =
   #estimate chunk.histogram.len * 2
   for c in chunk.histogram:
     chunk.writeInt16 c
   result = true
 
-method writeChunk(chunk: PNGData, png: PNG): bool =
+proc writeChunk(chunk: PNGData, png: PNG): bool =
   var nz = nzDeflateInit(chunk.idat)
   chunk.data = zlib_compress(nz)
-  debugEcho "IDAT.IDAT: ", chunk.idat.len
-  debugEcho "IDAT.DATA: ", chunk.data.len
   result = true
 
-method writeChunk(chunk: PNGZtxt, png: PNG): bool =
+proc writeChunk(chunk: PNGZtxt, png: PNG): bool =
   #estimate chunk.keyword.len + 2
   chunk.writeString chunk.keyword
   chunk.writeByte 0 #null separator
-  chunk.writeByte 0 #compression method(0: deflate)
+  chunk.writeByte 0 #compression proc(0: deflate)
   var nz = nzDeflateInit(chunk.text)
   chunk.writeString zlib_compress(nz)
   result = true
 
-method writeChunk(chunk: PNGItxt, png: PNG): bool =
+proc writeChunk(chunk: PNGItxt, png: PNG): bool =
   #estimate chunk.keyword.len + 2
   # + chunk.languageTag.len + chunk.translatedKeyword.len
   let state = PNGEncoder(png.settings)
@@ -2246,7 +2275,7 @@ method writeChunk(chunk: PNGItxt, png: PNG): bool =
   chunk.writeString chunk.keyword
   chunk.writeByte 0 #null separator
   chunk.writeByte compressed #compression flag(0: uncompressed, 1: compressed)
-  chunk.writeByte 0 #compression method(0: deflate)
+  chunk.writeByte 0 #compression proc(0: deflate)
   chunk.writeString chunk.languageTag
   chunk.writeByte 0 #null separator
   chunk.writeString chunk.translatedKeyword
@@ -2254,22 +2283,22 @@ method writeChunk(chunk: PNGItxt, png: PNG): bool =
   chunk.writeString text
   result = true
 
-method writeChunk(chunk: PNGICCProfile, png: PNG): bool =
+proc writeChunk(chunk: PNGICCProfile, png: PNG): bool =
   #estimate chunk.profileName.len + 2
   chunk.writeString chunk.profileName
   chunk.writeByte 0 #null separator
-  chunk.writeByte 0 #compression method(0: deflate)
+  chunk.writeByte 0 #compression proc(0: deflate)
   var nz = nzDeflateInit(chunk.profile)
   chunk.writeString zlib_compress(nz)
   result = true
 
-method writeChunk(chunk: APNGAnimationControl, png: PNG): bool =
+proc writeChunk(chunk: APNGAnimationControl, png: PNG): bool =
   # estimate 8 bytes
   chunk.writeInt32(chunk.numFrames)
   chunk.writeInt32(chunk.numPlays)
   result = true
 
-method writeChunk(chunk: APNGFrameControl, png: PNG): bool =
+proc writeChunk(chunk: APNGFrameControl, png: PNG): bool =
   # estimate 5*4 + 2*2 + 2 = 26 bytes
   chunk.writeInt32(chunk.sequenceNumber)
   chunk.writeInt32(chunk.width)
@@ -2282,11 +2311,35 @@ method writeChunk(chunk: APNGFrameControl, png: PNG): bool =
   chunk.writeByte(ord(chunk.blendOp))
   result = true
 
-method writeChunk(chunk: APNGFrameData, png: PNG): bool =
+proc writeChunk(chunk: APNGFrameData, png: PNG): bool =
   chunk.writeInt32(chunk.sequenceNumber)
   var nz = nzDeflateInit(png.apngPixels[chunk.frameDataPos])
   chunk.writeString zlib_compress(nz)
   result = true
+
+proc writeChunk(chunk: PNGChunk, png: PNG): bool =
+  case chunk.chunkType
+  of IHDR: result = writeChunk(PNGHeader(chunk), png)
+  of PLTE: result = writeChunk(PNGPalette(chunk), png)
+  of IDAT: result = writeChunk(PNGData(chunk), png)
+  of tRNS: result = writeChunk(PNGTrans(chunk), png)
+  of bKGD: result = writeChunk(PNGBackground(chunk), png)
+  of tIME: result = writeChunk(PNGTime(chunk), png)
+  of pHYs: result = writeChunk(PNGPhys(chunk), png)
+  of tEXt: result = writeChunk(PNGTExt(chunk), png)
+  of zTXt: result = writeChunk(PNGZtxt(chunk), png)
+  of iTXt: result = writeChunk(PNGItxt(chunk), png)
+  of gAMA: result = writeChunk(PNGGamma(chunk), png)
+  of cHRM: result = writeChunk(PNGChroma(chunk), png)
+  of iCCP: result = writeChunk(PNGICCProfile(chunk), png)
+  of sRGB: result = writeChunk(PNGStandarRGB(chunk), png)
+  of sPLT: result = writeChunk(PNGSPalette(chunk), png)
+  of hIST: result = writeChunk(PNGHist(chunk), png)
+  of sBIT: result = writeChunk(PNGSbit(chunk), png)
+  of acTL: result = writeChunk(APNGAnimationControl(chunk), png)
+  of fcTL: result = writeChunk(APNGFrameControl(chunk), png)
+  of fdAT: result = writeChunk(APNGFrameData(chunk), png)
+  else: result = true
 
 proc isGreyscaleType(mode: PNGColorMode): bool =
   result = mode.colorType in {LCT_GREY, LCT_GREY_ALPHA}
@@ -2502,7 +2555,7 @@ proc autoChooseColor(png: PNG, modeOut, modeIn: PNGColorMode) =
       modeOut.keyDefined = true
 
 proc filter[T](output: var openArray[T], input: openArray[T], w, h: int, modeOut: PNGColorMode, state: PNGEncoder) =
-  # For PNG filter method 0
+  # For PNG filter proc 0
   # out must be a buffer with as size: h + (w * h * bpp + 7) / 8, because there are
   # the scanlines with 1 extra byte per scanline
 
@@ -2886,8 +2939,8 @@ proc writeChunks*[T](png: PNG[T], s: Stream) =
   s.write PNGSignature
 
   for chunk in png.chunks:
-    if not chunk.validateChunk(png): raise PNGFatal("combine chunk validation error")
-    if not chunk.writeChunk(png): raise PNGFatal("combine chunk write error")
+    if not chunk.validateChunk(png): raise PNGFatal("combine chunk validation error " & $chunk.chunkType)
+    if not chunk.writeChunk(png): raise PNGFatal("combine chunk write error " & $chunk.chunkType)
     chunk.length = chunk.data.len
     chunk.crc = crc32(crc32(0, $chunk.chunkType), chunk.data)
 
