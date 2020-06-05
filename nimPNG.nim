@@ -1871,7 +1871,7 @@ when not defined(js):
   proc loadPNG24*(T: type, fileName: string, settings = PNGDecoder(nil)): PNGRes[T] =
     loadPNG(T, fileName, LCT_RGB, 8, settings)
 
-proc decodePNG32*(T: type, input: T, settings = PNGDecoder(nil)): PNGRes[T] =
+proc decodePNG32Impl*[T](input: T, settings = PNGDecoder(nil)): PNGRes[T] =
   try:
     when T is string:
       var s = newStringStream(input)
@@ -1884,7 +1884,7 @@ proc decodePNG32*(T: type, input: T, settings = PNGDecoder(nil)): PNGRes[T] =
   except PNGError, IOError, NZError:
     result.err(getCurrentExceptionMsg())
 
-proc decodePNG24*(T: type, input: T, settings = PNGDecoder(nil)): PNGRes[T] =
+proc decodePNG24Impl*[T](input: T, settings = PNGDecoder(nil)): PNGRes[T] =
   try:
     when T is string:
       var s = newStringStream(input)
@@ -1920,15 +1920,27 @@ when not defined(js):
     if res.isOk: result = res.get()
     else: debugEcho res.error()
 
-proc decodePNG32*(input: string, settings = PNGDecoder(nil)): PNGResult[string] =
-  let res = decodePNG32(string, input, settings)
+proc decodePNG32Legacy*(input: string, settings = PNGDecoder(nil)): PNGResult[string] =
+  let res = decodePNG32Impl(input, settings)
   if res.isOk: result = res.get()
   else: debugEcho res.error()
 
-proc decodePNG24*(input: string, settings = PNGDecoder(nil)): PNGResult[string] =
-  let res = decodePNG24(string, input, settings)
+proc decodePNG24Legacy*(input: string, settings = PNGDecoder(nil)): PNGResult[string] =
+  let res = decodePNG24Impl(input, settings)
   if res.isOk: result = res.get()
   else: debugEcho res.error()
+
+template decodePNG32*[T](input: T, settings = PNGDecoder(nil)): untyped =
+  when T is string:
+    decodePNG32Legacy(input, settings)
+  else:
+    decodePNG32Impl(input, settings)
+
+template decodePNG24*[T](input: T, settings = PNGDecoder(nil)): untyped =
+  when T is string:
+    decodePNG24Legacy(input, settings)
+  else:
+    decodePNG24Impl(input, settings)
 
 #Encoder/Decoder demarcation line-----------------------------
 
