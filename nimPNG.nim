@@ -2962,11 +2962,17 @@ proc encodePNG*[T](input: T, colorType: PNGColorType, bitDepth, w, h: int, setti
   state.modeIn.bitDepth = bitDepth
   result = encodePNG(input, w, h, state)
 
-proc encodePNG32*[T](input: T, w, h: int): PNG[T] =
-  result = encodePNG(input, LCT_RGBA, 8, w, h)
+template encodePNG32*[T](input: T, w, h: int): auto =
+  when T is openArray:
+    encodePNG(@(input), LCT_RGBA, 8, w, h)
+  else:
+    encodePNG(input, LCT_RGBA, 8, w, h)
 
-proc encodePNG24*[T](input: T, w, h: int): PNG[T] =
-  result = encodePNG(input, LCT_RGB, 8, w, h)
+template encodePNG24*[T](input: T, w, h: int): auto =
+  when T is openArray:
+    encodePNG(@(input), LCT_RGB, 8, w, h)
+  else:
+    encodePNG(input, LCT_RGB, 8, w, h)
 
 proc writeChunks*[T](png: PNG[T], s: Stream) =
   s.write PNGSignature
@@ -3115,18 +3121,24 @@ when not defined(js):
   template savePNG*[T](fileName: string, input: T, colorType: PNGColorType, bitDepth, w, h: int): untyped =
     when T is string:
       savePNGLegacy(fileName, input, colorType, bitDepth, w , h)
+    elif T is openArray:
+      savePNGImpl(fileName, @(input), colorType, bitDepth, w , h)
     else:
       savePNGImpl(fileName, input, colorType, bitDepth, w , h)
 
   template savePNG32*[T](fileName: string, input: T, w, h: int): untyped =
     when T is string:
       savePNG32Legacy(fileName, input, w, h)
+    elif T is openArray:
+      savePNG32Impl(fileName, @(input), w, h)
     else:
       savePNG32Impl(fileName, input, w, h)
 
   template savePNG24*[T](fileName: string, input: T, w, h: int): untyped =
     when T is string:
       savePNG24Legacy(fileName, input, w, h)
+    elif T is openArray:
+      savePNG24Impl(fileName, @(input), w, h)
     else:
       savePNG24Impl(fileName, input, w, h)
 

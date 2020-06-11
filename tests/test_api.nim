@@ -34,8 +34,17 @@ proc main() =
       check savePNG32(subject32, png2.data, png2.width, png2.height).isOk() == true
 
     test "decodePNG openArray[uint8]":
-      let png1 = decodePNG24(data.toOpenArrayByte(0, data.len-1))
-      let png2 = decodePNG32(data.toOpenArrayByte(0, data.len-1))
+      let res1 = decodePNG24(data.toOpenArrayByte(0, data.len-1))
+      let res2 = decodePNG32(data.toOpenArrayByte(0, data.len-1))
+
+      check res1.isOk() == true
+      check res2.isOk() == true
+
+      let png1 = res1.get()
+      let png2 = res2.get()
+
+      let im1 = encodePNG24(png1.data.toOpenArray(0, png1.data.len-1), png1.width, png1.height)
+      let im2 = encodePNG32(png2.data.toOpenArray(0, png2.data.len-1), png2.width, png2.height)
 
     test "loadPNG string":
       let png1 = loadPNG32(string, subject)
