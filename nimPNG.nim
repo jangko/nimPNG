@@ -30,6 +30,8 @@ import nimPNG/[buffer, nimz, filters, results]
 
 import strutils
 
+export typetraits, results
+
 const
   NIM_PNG_VERSION = "0.3.0"
 
@@ -254,7 +256,7 @@ proc `$`*(tag: PNGChunkType): string =
   result[2] = chr(uint32(t shr 8) and 0xFF)
   result[3] = chr(uint32(t) and 0xFF)
 
-proc `==`(a, b: PNGChunkType): bool = int(a) == int(b)
+proc `==`*(a, b: PNGChunkType): bool = int(a) == int(b)
 #proc isAncillary(a: PNGChunkType): bool = (int(a) and (32 shl 24)) != 0
 #proc isPrivate(a: PNGChunkType): bool = (int(a) and (32 shl 16)) != 0
 #proc isSafeToCopy(a: PNGChunkType): bool = (int(a) and 32) != 0
@@ -270,6 +272,18 @@ proc crc32(crc: uint32, buf: string): uint32 =
     crcu32 = (crcu32 shr 4) xor kcrc32[int((crcu32 and 0xF) xor (uint32(b) shr 4'u32))]
 
   result = not crcu32
+
+template newStorage[T](size: int): T =
+  when T is string:
+    newString(size)
+  else:
+    newSeq[uint8](size)
+
+template newStorageOfCap[T](size: int): T =
+  when T is string:
+    newStringOfCap(size)
+  else:
+    newSeqOfCap[uint8](size)
 
 const
   PNGSignature = signatureMaker()
@@ -381,7 +395,7 @@ proc readByte(s: PNGChunk): int =
   inc s.pos
 
 template readEnum(s: PNGChunk, T: type): untyped =
-  let typ = s.readByte.int
+  let typ = readByte(s).int
   if typ < low(T).int or typ > high(T).int:
     raise PNGFatal("Wrong " & T.name & " value " & $typ)
   T(typ)
@@ -949,7 +963,8 @@ proc parsePNG[T](s: Stream, settings: PNGDecoder): PNG[T] =
   if not idat.validateChunk(png): raise PNGFatal("bad IDAT")
   result = png
 
-proc postProcessScanLines[T](png: PNG; header: PNGHeader, w, h: int; input, output: var openArray[T]) =
+proc postProcessScanLines[T, A, B](png: PNG[T]; header: PNGHeader, w, h: int; input: var openArray[A],
+  output: var openArray[B]) =
   # This function converts the filtered-padded-interlaced data
   # into pure 2D image buffer with the PNG's colorType.
   # Steps:
@@ -993,25 +1008,25 @@ proc postProcessScanLines[T](png: PNG; header: PNGHeader, w, h: int; input, outp
 
     adam7Deinterlace(output, input, w, h, bpp)
 
-proc postProcessScanLines(png: PNG) =
+proc postProcessScanLines[T](png: PNG[T]) =
   var header = PNGHeader(png.getChunk(IHDR))
   let w = header.width
   let h = header.height
   var idat = PNGData(png.getChunk(IDAT))
-  png.pixels = newString(idatRawSize(header.width, header.height, header))
+  png.pixels = newStorage[T](idatRawSize(header.width, header.height, header))
 
   png.postProcessScanLines(header, w, h,
     idat.idat.toOpenArray(0, idat.idat.len-1), # input
     png.pixels.toOpenArray(0, png.pixels.len-1) # output
     )
 
-proc postProcessScanLines(png: PNG, ctl: APNGFrameControl, data: var string) =
+proc postProcessScanLines[T](png: PNG[T], ctl: APNGFrameControl, data: var string) =
   # we use var string here to avoid realloc
   # coz we use the input as output too
   var header = PNGHeader(png.getChunk(IHDR))
   let w = ctl.width
   let h = ctl.height
-  png.apngPixels.add newString(idatRawSize(ctl.width, ctl.height, header))
+  png.apngPixels.add newStorage[T](idatRawSize(ctl.width, ctl.height, header))
 
   png.postProcessScanLines(header, w, h,
     data.toOpenArray(0, data.len-1), # input
@@ -1112,9 +1127,9 @@ proc RGBFromRGB16[T](output: var openArray[T], input: openArray[T], numPixels: i
   for i in 0..<numPixels:
     let x = i * 3
     let y = i * 6
-    output[x]   = input[y]
-    output[x+1] = input[y+2]
-    output[x+2] = input[y+4]
+    output[x]   = T(input[y])
+    output[x+1] = T(input[y+2])
+    output[x+2] = T(input[y+4])
 
 proc RGBFromPalette8[T](output: var openArray[T], input: openArray[T], numPixels: int, mode: PNGColorMode) =
   for i in 0..<numPixels:
@@ -1123,13 +1138,13 @@ proc RGBFromPalette8[T](output: var openArray[T], input: openArray[T], numPixels
     if index >= mode.paletteSize:
       # This is an error according to the PNG spec, but most PNG decoders make it black instead.
       # Done here too, slightly faster due to no error handling needed.
-      output[x]   = chr(0)
-      output[x+1] = chr(0)
-      output[x+2] = chr(0)
+      output[x]   = T(0)
+      output[x+1] = T(0)
+      output[x+2] = T(0)
     else:
-      output[x]   = mode.palette[index].r
-      output[x+1] = mode.palette[index].g
-      output[x+2] = mode.palette[index].b
+      output[x]   = T(mode.palette[index].r)
+      output[x+1] = T(mode.palette[index].g)
+      output[x+2] = T(mode.palette[index].b)
 
 proc RGBFromPalette124[T](output: var openArray[T], input: openArray[T], numPixels: int, mode: PNGColorMode) =
   var obp = 0
@@ -1139,13 +1154,13 @@ proc RGBFromPalette124[T](output: var openArray[T], input: openArray[T], numPixe
     if index >= mode.paletteSize:
       # This is an error according to the PNG spec, but most PNG decoders make it black instead.
       # Done here too, slightly faster due to no error handling needed.
-      output[x]   = chr(0)
-      output[x+1] = chr(0)
-      output[x+2] = chr(0)
+      output[x]   = T(0)
+      output[x+1] = T(0)
+      output[x+2] = T(0)
     else:
-      output[x]   = mode.palette[index].r
-      output[x+1] = mode.palette[index].g
-      output[x+2] = mode.palette[index].b
+      output[x]   = T(mode.palette[index].r)
+      output[x+1] = T(mode.palette[index].g)
+      output[x+2] = T(mode.palette[index].b)
 
 proc RGBFromGreyAlpha8[T](output: var openArray[T], input: openArray[T], numPixels: int, mode: PNGColorMode) =
   for i in 0..<numPixels:
@@ -1185,8 +1200,8 @@ proc RGBAFromGrey8[T](output: var openArray[T], input: openArray[T], numPixels: 
     output[x]   = input[i]
     output[x+1] = input[i]
     output[x+2] = input[i]
-    if mode.keyDefined and (ord(input[i]) == mode.keyR): output[x+3] = chr(0)
-    else: output[x+3] = chr(255)
+    if mode.keyDefined and (ord(input[i]) == mode.keyR): output[x+3] = T(0)
+    else: output[x+3] = T(255)
 
 proc RGBAFromGrey16[T](output: var openArray[T], input: openArray[T], numPixels: int, mode: PNGColorMode) =
   for i in 0..<numPixels:
@@ -1196,21 +1211,21 @@ proc RGBAFromGrey16[T](output: var openArray[T], input: openArray[T], numPixels:
     output[x+1] = input[y]
     output[x+2] = input[y]
     let keyR = 256 * ord(input[y + 0]) + ord(input[y + 1])
-    if mode.keyDefined and (keyR == mode.keyR): output[x+3] = chr(0)
-    else: output[x+3] = chr(255)
+    if mode.keyDefined and (keyR == mode.keyR): output[x+3] = T(0)
+    else: output[x+3] = T(255)
 
 proc RGBAFromGrey124[T](output: var openArray[T], input: openArray[T], numPixels: int, mode: PNGColorMode) =
   var highest = ((1 shl mode.bitDepth) - 1) #highest possible value for this bit depth
   var obp = 0
   for i in 0..<numPixels:
     let val = readBitsFromReversedStream(obp, input, mode.bitDepth)
-    let value = chr((val * 255) div highest)
+    let value = T((val * 255) div highest)
     let x = i * 4
-    output[x]   = value
-    output[x+1] = value
-    output[x+2] = value
-    if mode.keyDefined and (ord(val) == mode.keyR): output[x+3] = chr(0)
-    else: output[x+3] = chr(255)
+    output[x]   = T(value)
+    output[x+1] = T(value)
+    output[x+2] = T(value)
+    if mode.keyDefined and (ord(val) == mode.keyR): output[x+3] = T(0)
+    else: output[x+3] = T(255)
 
 proc RGBAFromRGB8[T](output: var openArray[T], input: openArray[T], numPixels: int, mode: PNGColorMode) =
   for i in 0..<numPixels:
@@ -1220,8 +1235,8 @@ proc RGBAFromRGB8[T](output: var openArray[T], input: openArray[T], numPixels: i
     output[x+1] = input[y+1]
     output[x+2] = input[y+2]
     if mode.keyDefined and (mode.keyR == ord(input[y])) and
-      (mode.keyG == ord(input[y+1])) and (mode.keyB == ord(input[y+2])): output[x+3] = chr(0)
-    else: output[x+3] = chr(255)
+      (mode.keyG == ord(input[y+1])) and (mode.keyB == ord(input[y+2])): output[x+3] = T(0)
+    else: output[x+3] = T(255)
 
 proc RGBAFromRGB16[T](output: var openArray[T], input: openArray[T], numPixels: int, mode: PNGColorMode) =
   for i in 0..<numPixels:
@@ -1234,8 +1249,8 @@ proc RGBAFromRGB16[T](output: var openArray[T], input: openArray[T], numPixels: 
     let keyG = 256 * ord(input[y+2]) + ord(input[y+3])
     let keyB = 256 * ord(input[y+4]) + ord(input[y+5])
     if mode.keyDefined and (mode.keyR == keyR) and
-      (mode.keyG == keyG) and (mode.keyB == keyB): output[x+3] = chr(0)
-    else: output[x+3] = chr(255)
+      (mode.keyG == keyG) and (mode.keyB == keyB): output[x+3] = T(0)
+    else: output[x+3] = T(255)
 
 proc RGBAFromPalette8[T](output: var openArray[T], input: openArray[T], numPixels: int, mode: PNGColorMode) =
   for i in 0..<numPixels:
@@ -1244,15 +1259,15 @@ proc RGBAFromPalette8[T](output: var openArray[T], input: openArray[T], numPixel
     if index >= mode.paletteSize:
       # This is an error according to the PNG spec, but most PNG decoders make it black instead.
       # Done here too, slightly faster due to no error handling needed.
-      output[x]   = chr(0)
-      output[x+1] = chr(0)
-      output[x+2] = chr(0)
-      output[x+3] = chr(0)
+      output[x]   = T(0)
+      output[x+1] = T(0)
+      output[x+2] = T(0)
+      output[x+3] = T(0)
     else:
-      output[x]   = mode.palette[index].r
-      output[x+1] = mode.palette[index].g
-      output[x+2] = mode.palette[index].b
-      output[x+3] = mode.palette[index].a
+      output[x]   = T(mode.palette[index].r)
+      output[x+1] = T(mode.palette[index].g)
+      output[x+2] = T(mode.palette[index].b)
+      output[x+3] = T(mode.palette[index].a)
 
 proc RGBAFromPalette124[T](output: var openArray[T], input: openArray[T], numPixels: int, mode: PNGColorMode) =
   var obp = 0
@@ -1262,15 +1277,15 @@ proc RGBAFromPalette124[T](output: var openArray[T], input: openArray[T], numPix
     if index >= mode.paletteSize:
       # This is an error according to the PNG spec, but most PNG decoders make it black instead.
       # Done here too, slightly faster due to no error handling needed.
-      output[x]   = chr(0)
-      output[x+1] = chr(0)
-      output[x+2] = chr(0)
-      output[x+3] = chr(0)
+      output[x]   = T(0)
+      output[x+1] = T(0)
+      output[x+2] = T(0)
+      output[x+3] = T(0)
     else:
-      output[x]   = mode.palette[index].r
-      output[x+1] = mode.palette[index].g
-      output[x+2] = mode.palette[index].b
-      output[x+3] = mode.palette[index].a
+      output[x]   = T(mode.palette[index].r)
+      output[x+1] = T(mode.palette[index].g)
+      output[x+2] = T(mode.palette[index].b)
+      output[x+3] = T(mode.palette[index].a)
 
 proc RGBAFromGreyAlpha8[T](output: var openArray[T], input: openArray[T], numPixels: int, mode: PNGColorMode) =
   for i in 0..<numPixels:
@@ -1324,52 +1339,52 @@ proc hash*(c: RGBA8): Hash =
   result = !$(h)
 
 proc RGBA8FromGrey8[T](p: var RGBA8, input: openArray[T], px: int, mode: PNGColorMode) =
-  p.r = input[px]
-  p.g = input[px]
-  p.b = input[px]
-  if mode.keyDefined and (ord(p.r) == mode.keyR): p.a = chr(0)
-  else: p.a = chr(255)
+  p.r = char(input[px])
+  p.g = char(input[px])
+  p.b = char(input[px])
+  if mode.keyDefined and (ord(p.r) == mode.keyR): p.a = char(0)
+  else: p.a = char(255)
 
 proc RGBA8FromGrey16[T](p: var RGBA8, input: openArray[T], px: int, mode: PNGColorMode) =
   let i = px * 2
   let keyR = 256 * ord(input[i]) + ord(input[i + 1])
-  p.r = input[i]
-  p.g = input[i]
-  p.b = input[i]
-  if mode.keyDefined and (keyR == mode.keyR): p.a = chr(0)
-  else: p.a = chr(255)
+  p.r = char(input[i])
+  p.g = char(input[i])
+  p.b = char(input[i])
+  if mode.keyDefined and (keyR == mode.keyR): p.a = char(0)
+  else: p.a = char(255)
 
 proc RGBA8FromGrey124[T](p: var RGBA8, input: openArray[T], px: int, mode: PNGColorMode) =
   let highest = ((1 shl mode.bitDepth) - 1) #highest possible value for this bit depth
   var obp = px * mode.bitDepth
   let val = readBitsFromReversedStream(obp, input, mode.bitDepth)
-  let value = chr((val * 255) div highest)
+  let value = char((val * 255) div highest)
   p.r = value
   p.g = value
   p.b = value
-  if mode.keyDefined and (ord(val) == mode.keyR): p.a = chr(0)
-  else: p.a = chr(255)
+  if mode.keyDefined and (ord(val) == mode.keyR): p.a = char(0)
+  else: p.a = char(255)
 
 proc RGBA8FromRGB8[T](p: var RGBA8, input: openArray[T], px: int, mode: PNGColorMode) =
   let y = px * 3
-  p.r = input[y]
-  p.g = input[y+1]
-  p.b = input[y+2]
+  p.r = char(input[y])
+  p.g = char(input[y+1])
+  p.b = char(input[y+2])
   if mode.keyDefined and (mode.keyR == ord(input[y])) and
-    (mode.keyG == ord(input[y+1])) and (mode.keyB == ord(input[y+2])): p.a = chr(0)
-  else: p.a = chr(255)
+    (mode.keyG == ord(input[y+1])) and (mode.keyB == ord(input[y+2])): p.a = char(0)
+  else: p.a = char(255)
 
 proc RGBA8FromRGB16[T](p: var RGBA8, input: openArray[T], px: int, mode: PNGColorMode) =
   let y = px * 6
-  p.r = input[y]
-  p.g = input[y+2]
-  p.b = input[y+4]
+  p.r = char(input[y])
+  p.g = char(input[y+2])
+  p.b = char(input[y+4])
   let keyR = 256 * ord(input[y]) + ord(input[y+1])
   let keyG = 256 * ord(input[y+2]) + ord(input[y+3])
   let keyB = 256 * ord(input[y+4]) + ord(input[y+5])
   if mode.keyDefined and (mode.keyR == keyR) and
-    (mode.keyG == keyG) and (mode.keyB == keyB): p.a = chr(0)
-  else: p.a = chr(255)
+    (mode.keyG == keyG) and (mode.keyB == keyB): p.a = char(0)
+  else: p.a = char(255)
 
 proc RGBA8FromPalette8[T](p: var RGBA8, input: openArray[T], px: int, mode: PNGColorMode) =
   let index = ord(input[px])
@@ -1377,10 +1392,10 @@ proc RGBA8FromPalette8[T](p: var RGBA8, input: openArray[T], px: int, mode: PNGC
     # This is an error according to the PNG spec,
     # but common PNG decoders make it black instead.
     # Done here too, slightly faster due to no error handling needed.
-    p.r = chr(0)
-    p.g = chr(0)
-    p.b = chr(0)
-    p.a = chr(255)
+    p.r = char(0)
+    p.g = char(0)
+    p.b = char(0)
+    p.a = char(255)
   else:
     p.r = mode.palette[index].r
     p.g = mode.palette[index].g
@@ -1394,10 +1409,10 @@ proc RGBA8FromPalette124[T](p: var RGBA8, input: openArray[T], px: int, mode: PN
     # This is an error according to the PNG spec,
     # but common PNG decoders make it black instead.
     # Done here too, slightly faster due to no error handling needed.
-    p.r = chr(0)
-    p.g = chr(0)
-    p.b = chr(0)
-    p.a = chr(255)
+    p.r = char(0)
+    p.g = char(0)
+    p.b = char(0)
+    p.a = char(255)
   else:
     p.r = mode.palette[index].r
     p.g = mode.palette[index].g
@@ -1406,33 +1421,33 @@ proc RGBA8FromPalette124[T](p: var RGBA8, input: openArray[T], px: int, mode: PN
 
 proc RGBA8FromGreyAlpha8[T](p: var RGBA8, input: openArray[T], px: int, mode: PNGColorMode) =
   let i = px * 2
-  let val = input[i]
+  let val = char(input[i])
   p.r = val
   p.g = val
   p.b = val
-  p.a = input[i+1]
+  p.a = char(input[i+1])
 
 proc RGBA8FromGreyAlpha16[T](p: var RGBA8, input: openArray[T], px: int, mode: PNGColorMode) =
   let i = px * 4
-  let val = input[i]
+  let val = char(input[i])
   p.r = val
   p.g = val
   p.b = val
-  p.a = input[i+2]
+  p.a = char(input[i+2])
 
 proc RGBA8FromRGBA8[T](p: var RGBA8, input: openArray[T], px: int, mode: PNGColorMode) =
   let i = px * 4
-  p.r = input[i]
-  p.g = input[i+1]
-  p.b = input[i+2]
-  p.a = input[i+3]
+  p.r = char(input[i])
+  p.g = char(input[i+1])
+  p.b = char(input[i+2])
+  p.a = char(input[i+3])
 
 proc RGBA8FromRGBA16[T](p: var RGBA8, input: openArray[T], px: int, mode: PNGColorMode) =
   let i = px * 8
-  p.r = input[i]
-  p.g = input[i+2]
-  p.b = input[i+4]
-  p.a = input[i+6]
+  p.r = chaR(input[i])
+  p.g = chaR(input[i+2])
+  p.b = chaR(input[i+4])
+  p.a = chaR(input[i+6])
 
 proc RGBA16FromGrey[T](p: var RGBA16, input: openArray[T], px: int, mode: PNGColorMode) =
   let i = px * 2
@@ -1468,12 +1483,12 @@ proc RGBA16FromRGBA[T](p: var RGBA16, input: openArray[T], px: int, mode: PNGCol
   p.a = 256'u16 * uint16(input[i+6]) + uint16(input[i+7])
 
 proc RGBA8ToGrey8[T](p: RGBA8, output: var openArray[T], px: int, mode: PNGColorMode, ct: ColorTree8) =
-  output[px] = p.r
+  output[px] = T(p.r)
 
 proc RGBA8ToGrey16[T](p: RGBA8, output: var openArray[T], px: int, mode: PNGColorMode, ct: ColorTree8) =
   let i = px * 2
-  output[i] = p.r
-  output[i+1] = p.r
+  output[i] = T(p.r)
+  output[i+1] = T(p.r)
 
 proc RGBA8ToGrey124[T](p: RGBA8, output: var openArray[T], px: int, mode: PNGColorMode, ct: ColorTree8) =
   # take the most significant bits of grey
@@ -1482,18 +1497,18 @@ proc RGBA8ToGrey124[T](p: RGBA8, output: var openArray[T], px: int, mode: PNGCol
 
 proc RGBA8ToRGB8[T](p: RGBA8, output: var openArray[T], px: int, mode: PNGColorMode, ct: ColorTree8) =
   let i = px * 3
-  output[i]   = p.r
-  output[i+1] = p.g
-  output[i+2] = p.b
+  output[i]   = T(p.r)
+  output[i+1] = T(p.g)
+  output[i+2] = T(p.b)
 
 proc RGBA8ToRGB16[T](p: RGBA8, output: var openArray[T], px: int, mode: PNGColorMode, ct: ColorTree8) =
   let i = px * 6
-  output[i]   = p.r
-  output[i+2] = p.g
-  output[i+4] = p.b
-  output[i+1] = p.r
-  output[i+3] = p.g
-  output[i+5] = p.b
+  output[i]   = T(p.r)
+  output[i+2] = T(p.g)
+  output[i+4] = T(p.b)
+  output[i+1] = T(p.r)
+  output[i+3] = T(p.g)
+  output[i+5] = T(p.b)
 
 proc RGBA8ToPalette8[T](p: RGBA8, output: var openArray[T], px: int, mode: PNGColorMode, ct: ColorTree8) =
   output[px] = T(ct[p])
@@ -1503,37 +1518,37 @@ proc RGBA8ToPalette124[T](p: RGBA8, output: var openArray[T], px: int, mode: PNG
 
 proc RGBA8ToGreyAlpha8[T](p: RGBA8, output: var openArray[T], px: int, mode: PNGColorMode, ct: ColorTree8) =
   let i = px * 2
-  output[i] = p.r
-  output[i+1] = p.a
+  output[i]   = T(p.r)
+  output[i+1] = T(p.a)
 
 proc RGBA8ToGreyAlpha16[T](p: RGBA8, output: var openArray[T], px: int, mode: PNGColorMode, ct: ColorTree8) =
   let i = px * 4
-  output[i] = p.r
-  output[i+1] = p.r
-  output[i+2] = p.a
-  output[i+3] = p.a
+  output[i]   = T(p.r)
+  output[i+1] = T(p.r)
+  output[i+2] = T(p.a)
+  output[i+3] = T(p.a)
 
 proc RGBA8ToRGBA8[T](p: RGBA8, output: var openArray[T], px: int, mode: PNGColorMode, ct: ColorTree8) =
   let i = px * 4
-  output[i] = p.r
-  output[i+1] = p.g
-  output[i+2] = p.b
-  output[i+3] = p.a
+  output[i]   = T(p.r)
+  output[i+1] = T(p.g)
+  output[i+2] = T(p.b)
+  output[i+3] = T(p.a)
 
 proc RGBA8ToRGBA16[T](p: RGBA8, output: var openArray[T], px: int, mode: PNGColorMode, ct: ColorTree8) =
   let i = px * 8
-  output[i] = p.r
-  output[i+2] = p.g
-  output[i+4] = p.b
-  output[i+6] = p.a
-  output[i+1] = p.r
-  output[i+3] = p.g
-  output[i+5] = p.b
-  output[i+7] = p.a
+  output[i]   = T(p.r)
+  output[i+2] = T(p.g)
+  output[i+4] = T(p.b)
+  output[i+6] = T(p.a)
+  output[i+1] = T(p.r)
+  output[i+3] = T(p.g)
+  output[i+5] = T(p.b)
+  output[i+7] = T(p.a)
 
 proc RGBA16ToGrey[T](p: RGBA16, output: var openArray[T], px: int, mode: PNGColorMode) =
   let i = px * 2
-  output[i] = T((p.r shr 8) and 255)
+  output[i]   = T((p.r shr 8) and 255)
   output[i+1] = T(p.r and 255)
 
 proc RGBA16ToRGB[T](p: RGBA16, output: var openArray[T], px: int, mode: PNGColorMode) =
@@ -1691,7 +1706,7 @@ proc convertImpl*[T](output: var openArray[T], input: openArray[T], modeOut, mod
     let cvt = getColorRGBA8[T](modeIn)
     let pxl = getPixelRGBA8[T](modeOut)
     for px in 0..<numPixels:
-      var p = RGBA8(r:chr(0), g:chr(0), b:chr(0), a:chr(0))
+      var p = RGBA8(r:char(0), g:char(0), b:char(0), a:char(0))
       cvt(p, input, px, modeIn)
       pxl(p, output, px, modeOut, tree)
 
@@ -1710,10 +1725,7 @@ proc convert*[T](png: PNG[T], colorType: PNGColorType, bitDepth: int): PNGResult
   new(result)
   result.width  = header.width
   result.height = header.height
-  when T is string:
-    result.data   = newString(size)
-  else:
-    result.data   = newSeq[uint8](size)
+  result.data   = newStorage[T](size)
 
   if modeOut == modeIn:
     result.data = png.pixels
@@ -1723,7 +1735,7 @@ proc convert*[T](png: PNG[T], colorType: PNGColorType, bitDepth: int): PNGResult
     png.pixels.toOpenArray(0, png.pixels.len-1),
     modeOut, modeIn, numPixels)
 
-proc convert*[T](png: PNG[T], colorType: PNGColorType, bitDepth: int, ctl: APNGFrameControl, data: string): APNGFrame[T] =
+proc convert*[T](png: PNG[T], colorType: PNGColorType, bitDepth: int, ctl: APNGFrameControl, data: T): APNGFrame[T] =
   let modeIn = png.getColorMode()
   let modeOut = newColorMode(colorType, bitDepth)
   let size = getRawSize(ctl.width, ctl.height, modeOut)
@@ -1731,10 +1743,7 @@ proc convert*[T](png: PNG[T], colorType: PNGColorType, bitDepth: int, ctl: APNGF
 
   new(result)
   result.ctl  = ctl
-  when T is string:
-    result.data   = newString(size)
-  else:
-    result.data   = newSeq[uint8](size)
+  result.data = newStorage[T](size)
 
   if modeOut == modeIn:
     result.data = data
@@ -1744,10 +1753,10 @@ proc convert*[T](png: PNG[T], colorType: PNGColorType, bitDepth: int, ctl: APNGF
     data.toOpenArray(0, data.len-1),
     modeOut, modeIn, numPixels)
 
-proc toString(chunk: APNGFrameData): string =
+proc toStorage[T](chunk: APNGFrameData): T =
   let fdatLen = chunk.data.len - chunk.frameDataPos
   let fdatAddr = chunk.data[chunk.frameDataPos].addr
-  result = newString(fdatLen)
+  result = newStorage[T](fdatLen)
   copyMem(result[0].addr, fdatAddr, fdatLen)
 
 type
@@ -1768,7 +1777,10 @@ proc processingAPNG[T](apng: APNG[T], colorType: PNGColorType, bitDepth: int) =
   if apng.png.firstFrameIsDefaultImage:
     start = 1
     # IDAT already processed, so we add a dummy here
-    frameData.add ""
+    when T is string:
+      frameData.add ""
+    else:
+      frameData.add @[]
 
   for x in apng.png.apngChunks:
     if x.chunkType == fcTL:
@@ -1778,9 +1790,9 @@ proc processingAPNG[T](apng: APNG[T], colorType: PNGColorType, bitDepth: int) =
     else:
       let y = APNGFrameData(x)
       if lastChunkType == fdAT:
-        frameData[^1].add y.toString()
+        frameData[^1].add toStorage[T](y)
       else:
-        frameData.add y.toString()
+        frameData.add toStorage[T](y)
       lastChunkType = fdAT
 
   if actl.numFrames == 0 or actl.numFrames != numFrames or actl.numFrames != frameData.len:
@@ -1806,7 +1818,10 @@ proc processingAPNG[T](apng: APNG[T], colorType: PNGColorType, bitDepth: int) =
 
   for i in start..<numFrames:
     let ctl = frameControl[i]
-    var nz = nzInflateInit(frameData[i])
+    when T is string:
+      var nz = nzInflateInit(frameData[i])
+    else:
+      var nz = nzInflateInit(cast[string](frameData[i]))
     nz.ignoreAdler32 = PNGDecoder(apng.png.settings).ignoreAdler32
     var idat = zlib_decompress(nz)
     apng.png.postProcessScanLines(ctl, idat)
@@ -1860,7 +1875,7 @@ when not defined(js):
       if s == nil:
         result.err("cannot open input stream")
         return
-      result.ok(s.decodePNG(colorType, bitDepth, settings))
+      result.ok(decodePNG(T, s, colorType, bitDepth, settings))
       s.close()
     except PNGError, IOError, NZError:
       result.err(getCurrentExceptionMsg())
@@ -1880,7 +1895,7 @@ proc decodePNG32Impl*[T](input: T, settings = PNGDecoder(nil)): PNGRes[T] =
     if s == nil:
       result.err("cannot open input stream")
       return
-    result.ok(s.decodePNG(LCT_RGBA, 8, settings))
+    result.ok(decodePNG(T, s, LCT_RGBA, 8, settings))
   except PNGError, IOError, NZError:
     result.err(getCurrentExceptionMsg())
 
@@ -1893,7 +1908,7 @@ proc decodePNG24Impl*[T](input: T, settings = PNGDecoder(nil)): PNGRes[T] =
     if s == nil:
       result.err("cannot open input stream")
       return
-    result.ok(s.decodePNG(LCT_RGB, 8, settings))
+    result.ok(decodePNG(T, s, LCT_RGB, 8, settings))
   except PNGError, IOError, NZError:
     result.err(getCurrentExceptionMsg())
 
@@ -1933,12 +1948,16 @@ proc decodePNG24Legacy*(input: string, settings = PNGDecoder(nil)): PNGResult[st
 template decodePNG32*[T](input: T, settings = PNGDecoder(nil)): untyped =
   when T is string:
     decodePNG32Legacy(input, settings)
+  elif T is openArray:
+    decodePNG32Impl(@(input), settings)
   else:
     decodePNG32Impl(input, settings)
 
 template decodePNG24*[T](input: T, settings = PNGDecoder(nil)): untyped =
   when T is string:
     decodePNG24Legacy(input, settings)
+  elif T is openArray:
+    decodePNG24Impl(@(input), settings)
   else:
     decodePNG24Impl(input, settings)
 
@@ -2325,7 +2344,7 @@ proc writeChunk(chunk: APNGFrameControl, png: PNG): bool =
 
 proc writeChunk(chunk: APNGFrameData, png: PNG): bool =
   chunk.writeInt32(chunk.sequenceNumber)
-  var nz = nzDeflateInit(png.apngPixels[chunk.frameDataPos])
+  var nz = nzDeflateInit(cast[string](png.apngPixels[chunk.frameDataPos]))
   chunk.writeString zlib_compress(nz)
   result = true
 
@@ -2384,7 +2403,7 @@ proc differ(p: RGBA16): bool =
   if (p.a and 255) != ((p.a shr 8) and 255): return true
   result = false
 
-proc calculateColorProfile(input: string, w, h: int, mode: PNGColorMode, prof: PNGColorProfile, tree: var Table[RGBA8, int]) =
+proc calculateColorProfile[T](input: openArray[T], w, h: int, mode: PNGColorMode, prof: PNGColorProfile, tree: var Table[RGBA8, int]) =
   let
     numPixels = w * h
     bpp = getBPP(mode)
@@ -2406,7 +2425,7 @@ proc calculateColorProfile(input: string, w, h: int, mode: PNGColorMode, prof: P
 
   #Check if the 16-bit input is truly 16-bit
   if mode.bitDepth == 16:
-    let cvt = getColorRGBA16[char](mode)
+    let cvt = getColorRGBA16[T](mode)
     var p = RGBA16(r:0, g:0, b:0, a:0)
     for px in 0..<numPixels:
       cvt(p, input.toOpenArray(0, input.len-1), px, mode)
@@ -2415,7 +2434,7 @@ proc calculateColorProfile(input: string, w, h: int, mode: PNGColorMode, prof: P
         break
 
   if sixteen:
-    let cvt = getColorRGBA16[char](mode)
+    let cvt = getColorRGBA16[T](mode)
     var p = RGBA16(r:0, g:0, b:0, a:0)
     prof.bits = 16
     #counting colors no longer useful, palette doesn't support 16-bit
@@ -2448,7 +2467,7 @@ proc calculateColorProfile(input: string, w, h: int, mode: PNGColorMode, prof: P
 
       if alphaDone and numColorsDone and coloredDone and bitsDone: break
   else: # < 16-bit
-    let cvt = getColorRGBA8[char](mode)
+    let cvt = getColorRGBA8[T](mode)
     for px in 0..<numPixels:
       var p = RGBA8(r:chr(0), g:chr(0), b:chr(0), a:chr(0))
       cvt(p, input.toOpenArray(0, input.len-1), px, mode)
@@ -2500,12 +2519,13 @@ proc getColorProfile(png: PNG, mode: PNGColorMode): PNGColorProfile =
     prof = makeColorProfile()
     tree = initTable[RGBA8, int]()
 
-  calculateColorProfile(png.pixels, png.width, png.height, mode, prof, tree)
+  calculateColorProfile(png.pixels.toOpenArray(0, png.pixels.len-1), png.width, png.height, mode, prof, tree)
 
   if png.isAPNG:
     for i in 1..<png.apngChunks.len:
       var ctl = APNGFrameControl(png.apngChunks[i])
-      calculateColorProfile(png.apngPixels[i], ctl.width, ctl.height, mode, prof, tree)
+      let len = png.apngPixels[i].len
+      calculateColorProfile(png.apngPixels[i].toOpenArray(0, len-1), ctl.width, ctl.height, mode, prof, tree)
 
   result = prof
 
@@ -2598,7 +2618,7 @@ proc filter[T](output: var openArray[T], input: openArray[T], w, h: int, modeOut
   of LFS_BRUTE_FORCE: filterBruteForce(output, input, w, h, bpp)
   of LFS_PREDEFINED: filterPredefined(output, input, w, h, bpp, state.predefinedFilters)
 
-proc preProcessScanLines[T](png: PNG, input: openArray[T], frameNo, w, h: int, modeOut: PNGColorMode, state: PNGEncoder) =
+proc preProcessScanLines[T, B](png: PNG[T], input: openArray[B], frameNo, w, h: int, modeOut: PNGColorMode, state: PNGEncoder) =
   # This function converts the pure 2D image with the PNG's colorType, into filtered-padded-interlaced data. Steps:
   #  if no Adam7: 1) add padding bits (= posible extra bits per scanLine if bpp < 8) 2) filter
   #  if adam7: 1) Adam7_interlace 2) 7x add padding bits 3) 7x filter
@@ -2608,11 +2628,11 @@ proc preProcessScanLines[T](png: PNG, input: openArray[T], frameNo, w, h: int, m
     # image size plus an extra byte per scanLine + possible padding bits
     let scanLen = (w * bpp + 7) div 8
     let outSize = h + (h * scanLen)
-    var output = newString(outSize)
+    var output = newStorage[T](outSize)
 
     # non multiple of 8 bits per scanLine, padding bits needed per scanLine
     if(bpp < 8) and ((w * bpp) != (scanLen * 8)):
-      var padded = newString(h * scanLen)
+      var padded = newStorage[T](h * scanLen)
       addPaddingBits(padded.toOpenArray(0, padded.len-1), input, scanLen * 8, w * bpp, h)
 
       filter(output.toOpenArray(0, output.len-1),
@@ -2630,14 +2650,14 @@ proc preProcessScanLines[T](png: PNG, input: openArray[T], frameNo, w, h: int, m
     adam7PassValues(pass, w, h, bpp)
     let outSize = pass.filterStart[7]
 
-    var output = newString(outSize)
-    var adam7 = newString(pass.start[7])
+    var output = newStorage[T](outSize)
+    var adam7 = newStorage[T](pass.start[7])
 
     adam7Interlace(adam7.toOpenArray(0, adam7.len-1),
       input, w, h, bpp)
     for i in 0..6:
       if bpp < 8:
-        var padding = newString(pass.paddedStart[i + 1] - pass.paddedStart[i])
+        var padding = newStorage[T](pass.paddedStart[i + 1] - pass.paddedStart[i])
 
         addPaddingBits(padding.toOpenArray(0, padding.len-1),
           adam7.toOpenArray(pass.start[i], adam7.len-1),
@@ -2736,7 +2756,7 @@ proc addChunkpHYs(png: PNG, state: PNGEncoder) =
 
 proc addChunkIDAT(png: PNG, state: PNGEncoder) =
   var chunk = make[PNGData](IDAT, 0)
-  chunk.idat = png.pixels
+  chunk.idat = cast[string](png.pixels)
   png.chunks.add chunk
 
 proc addChunktIME(png: PNG, state: PNGEncoder) =
@@ -2779,7 +2799,7 @@ proc addChunkacTL(png: PNG, numFrames, numPlays: int) =
   chunk.numPlays = numPlays
   png.chunks.add chunk
 
-proc addChunkfcTL(png: PNG, chunk: APNGFrameControl, sequenceNumber: int) =
+proc addChunkfcTL[T](png: PNG[T], chunk: APNGFrameControl, sequenceNumber: int) =
   chunk.chunkType = fcTL
   if chunk.data == "":
     chunk.data = newStringOfCap(26)
@@ -2799,7 +2819,7 @@ proc frameConvert[T](png: PNG[T], modeIn, modeOut: PNGColorMode, w, h, frameNo: 
     let size = (w * h * getBPP(modeOut) + 7) div 8
     let numPixels = w * h
 
-    var converted = newString(size)
+    var converted = newStorage[T](size)
     # although in preProcessScanLines png.pixels is reinitialized, it is ok
     # because initBuffer(png.pixels) share the ownership
     convertImpl(converted.toOpenArray(0, converted.len-1),
@@ -2843,7 +2863,8 @@ proc encoderCore[T](png: PNG[T]) =
   if not bitDepthAllowed(modeOut.colorType, modeOut.bitDepth):
     raise PNGFatal("colorType and bitDepth combination not allowed")
 
-  if not png.isAPNG: png.apngPixels = @[""]
+  if not png.isAPNG: png.apngPixels = @[newStorage[T](0)]
+
   shallowCopy(png.apngPixels[0], png.pixels)
   frameConvert[T](png, modeIn, modeOut, png.width, png.height, 0, state)
   shallowCopy(png.pixels, png.apngPixels[0])
