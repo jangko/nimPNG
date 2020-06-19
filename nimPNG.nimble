@@ -1,5 +1,5 @@
 # Package
-version       = "0.3.0"
+version       = "0.3.1"
 author        = "Andri Lim"
 description   = "PNG encoder and decoder"
 license       = "MIT"

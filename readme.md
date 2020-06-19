@@ -5,6 +5,7 @@ Notable releases:
 - 0.2.0 support Animated PNG!
 - 0.2.6 compile with --gc:arc.
 - 0.3.0 [new set of API](apidoc.md) using seq[uint8] and new method to handle error.
+- 0.3.1 fix new API bug and add openArray API
 
 [![Build Status (Travis)](https://img.shields.io/travis/jangko/nimPNG/master.svg?label=Linux%20/%20macOS "Linux/macOS build status (Travis)")](https://travis-ci.org/jangko/nimPNG)
 [![Build status](https://ci.appveyor.com/api/projects/status/7ap5r5a41t7ea04p?svg=true)](https://ci.appveyor.com/project/jangko/nimpng)
