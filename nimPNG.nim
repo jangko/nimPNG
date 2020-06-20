@@ -33,7 +33,7 @@ import strutils
 export typetraits, results
 
 const
-  NIM_PNG_VERSION = "0.3.0"
+  NIM_PNG_VERSION = "0.3.1"
 
 type
   PNGChunkType = distinct int32

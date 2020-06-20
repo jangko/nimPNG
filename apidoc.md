@@ -37,7 +37,8 @@ decodePNG24(input: string, settings = PNGDecoder(nil)): PNGResult
 
 
 ```Nim
-# generic version accept T = `string`, `seq[uint8]`
+# generic version accept T = `string`, `seq[TT]`, or openArray[TT]
+# TT can be `byte`, `char`, or `uint8`
 encodePNG(input: T, w, h: int, settings = PNGEncoder(nil)): PNG[T]
 encodePNG(input: T, colorType: PNGColorType, bitDepth, w, h: int, settings = PNGEncoder(nil)): PNG[T]
 encodePNG32(input: T, w, h: int): PNG[T]
@@ -65,7 +66,7 @@ when not defined(js):
   saveAPNG(png: PNG[T], fileName: string): PNGStatus
 
 decodePNG(T: type, s: Stream, colorType: PNGColorType, bitDepth: int, settings = PNGDecoder(nil)): PNGResult[T]
-decodePNG(T: type, s: Stream, settings = PNGDecoder(nil)): PNG
+decodePNG(T: type, s: Stream, settings = PNGDecoder(nil)): PNG[T]
 
 type
   PNGRes*[T] = Result[PNGResult[T], string]
@@ -82,7 +83,18 @@ decodePNG24(input: T, settings = PNGDecoder(nil)): PNGRes[T]
 ## How to use PNGRes?
 
 ```Nim
-  let res = loadPNG32(seq[uint8], fileName, settings)
-  if res.isOk: result = res.get()  # get PNGResult[seq[uint8]]
-  else: debugEcho res.error()      # get error string
+  type
+    PNGPix = seq[uint8]
+
+  var pix: PNGResult[PNGPix]
+  let res = loadPNG32(PNGPix, fileName)
+  if res.isOk: pix = res.get()  # get PNGResult[PNGPix]
+  else: debugEcho res.error()   # get error string
+
+  # now you can access PNGResult as usual:
+  debugEcho "width: ", pix.width
+  debugEcho "height: ", pix.height
+
+  # draw(pix.data)
+  # or drawFrames(pix.frames) if it is a APNG
 ```
