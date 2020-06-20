@@ -42,7 +42,7 @@ install:
   - SET "NEED_REBUILD="
 
   - IF NOT EXIST "Nim\\.git\\" (
-      git clone https://github.com/nim-lang/Nim.git
+      git clone --depth 1https://github.com/nim-lang/Nim.git
     ) ELSE (
       ( cd Nim ) &
       ( git pull ) &
@@ -80,7 +80,7 @@ install:
 
 build_script:
   - cd C:\projects\%APPVEYOR_PROJECT_SLUG%
-  - nimble install -y # > nul
+  - nimble install -y > nul
 test_script:
   - nimble tests
 

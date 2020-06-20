@@ -61,19 +61,19 @@ Supported color conversions:
 import nimPNG
 
 let png = loadPNG32("image.png")
-#is equivalent to:
-#let png = loadPNG("image.png", LCT_RGBA, 8)
-#will produce rgba pixels:
-#png.width -> width of the image
-#png.height -> height of the image
-#png.data -> pixels data in RGBA format
+# is equivalent to:
+# let png = loadPNG("image.png", LCT_RGBA, 8)
+# will produce rgba pixels:
+# png.width -> width of the image
+# png.height -> height of the image
+# png.data -> pixels data in RGBA format
 ```
 
 if you already have the whole file in memory:
 
 ```Nim
 let png = decodePNG32(raw_bytes)
-#will do the same as above
+# will do the same as above
 ```
 
 other variants:
@@ -89,9 +89,9 @@ to create PNG:
 special notes:
 
 * Use **loadPNG** or **savePNG** if you need specific input/output format by supplying supported **colorType** and **bitDepth** information.
-* Use **encodePNG** or **decodePNG** to do *in-memory* encoding/decoding by supplying desired **colorType** and **bitDepth** information
+* Use **encodePNG** or **decodePNG** to do *in-memory* encoding/decoding by supplying desired **colorType** and **bitDepth** information.
 
-pixels are stored as raw bytes using Nim's string as container:
+pixels are stored as raw bytes using Nim's `string`/`seq[T]` as container:
 
 |           Byte Order           |      Format      |
 |:------------------------------:|:----------------:|
@@ -99,7 +99,6 @@ pixels are stored as raw bytes using Nim's string as container:
 | r1,g1,b1,r2,g2,b2,...,rn,gn,bn | RGB 8 bit        |
 | grey1,grey2,grey3, ..., greyn  | GREY 8 bit       |
 | grey1,a1,grey2,a2,...,greyn,an | GREY ALPHA 8 bit |
-
 
 ## Animated PNG (APNG)
 
@@ -126,7 +125,7 @@ Right now nimPNG is just a PNG encoder/decoder.
 
 The usual loadPNG and decodePNG can decode both unanimated and animated PNG.
 `png.width`, `png.height`, `png.data` works as usual. If the decoded PNG is an APNG, `png.data` will contains default frame.
-Animation frames can be accessible via `png.frames`. If it is not an APNG, `png.frames` will be nil.
+Animation frames can be accessible via `png.frames`. If it is not an APNG, `png.frames` will be have zero length.
 
 ### Encoding
 
@@ -156,7 +155,7 @@ the default image will be part of the animation. If `ctl` is nil, default image 
   var str = png.encodeAPNG()
 ```
 
-* Final step is to call `saveAPNG` if you want save it to file or call `encodeAPNG` if you want to get the result in a string container
+* Final step is to call `saveAPNG` if you want save it to a file or call `encodeAPNG` if you want to get the result in memory.
 
 You can read the details of frame control from [spec](https://wiki.mozilla.org/APNG_Specification).
 You can also see an example in tester/test.nim -> generateAPNG
