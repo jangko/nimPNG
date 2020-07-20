@@ -504,6 +504,29 @@ proc testPredefinedFilters() =
   for i in 0..<h:
     assertEquals(FLT_AVERAGE, outFilters[i])
 
+
+  # bad predefinedFilters
+  state.predefinedFilters = newSeq[PNGFilter](h-1)
+  for i in 0..<h-1:
+    state.predefinedFilters[i] = FLT_AVERAGE
+
+  try:
+    var pngx = encodePNG(image.data, w, h, state)
+    doAssert(false, "should never reach this code")
+  except PNGError:
+    discard
+
+  # bad predefinedFilters
+  state.predefinedFilters = newSeq[PNGFilter](h+1)
+  for i in 0..<h+1:
+    state.predefinedFilters[i] = FLT_AVERAGE
+
+  try:
+    var pngx = encodePNG(image.data, w, h, state)
+    doAssert(false, "should never reach this code")
+  except PNGError:
+    discard
+
 # Tests combinations of various colors in different orders
 proc testFewColors() =
   echo "codec test few colors"
