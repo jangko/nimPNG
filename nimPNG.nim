@@ -2847,8 +2847,8 @@ proc encoderCore[T](png: PNG[T]) =
     raise PNGFatal("invalid palette size, it is only allowed to be 1-256")
 
   if state.filterStrategy == LFS_PREDEFINED:
-    if state.predefinedFilters.len < png.width:
-      raise PNGFatal("predefinedFilters contains not enough filterType compared to image height")
+    if state.predefinedFilters.len != png.height:
+      raise PNGFatal("predefinedFilters length not equals to image height")
 
   let inputSize = getRawSize(png.width, png.height, modeIn)
   if png.pixels.len < inputSize:
