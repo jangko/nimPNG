@@ -126,7 +126,7 @@ type
     use_lz77: bool
     windowsize: range[2..32768]
     minmatch: range[3..258]
-    nicematch: range[3..358]
+    nicematch: range[3..258]
     lazymatching: bool
     bits: BitStream
     data: string
