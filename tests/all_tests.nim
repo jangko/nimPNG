@@ -1,3 +1,5 @@
+{. warning[UnusedImport]:off .}
+
 import
   test_apng,
   test_codec,
