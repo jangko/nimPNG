@@ -273,17 +273,21 @@ proc crc32(crc: uint32, buf: string): uint32 =
 
   result = not crcu32
 
+template getUnderlyingType[T](_: seq[T]): untyped = T
+
 template newStorage[T](size: int): T =
   when T is string:
     newString(size)
   else:
-    newSeq[uint8](size)
+    type TT = getUnderlyingType(T)
+    newSeq[TT](size)
 
 template newStorageOfCap[T](size: int): T =
   when T is string:
     newStringOfCap(size)
   else:
-    newSeqOfCap[uint8](size)
+    type TT = getUnderlyingType(T)
+    newSeqOfCap[TT](size)
 
 const
   PNGSignature = signatureMaker()
