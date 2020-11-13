@@ -26,7 +26,7 @@ install:
   - "{ [ -f nim/$NIMVER/bin/nim ] && [ -f nim/$NIMVER/bin/nimble ] ; } ||
       { rm -rf nim ;
         mkdir -p nim ;
-        git clone --depth=1 https://github.com/nim-lang/nim.git nim/$NIMVER ;
+        git clone --depth 1 https://github.com/nim-lang/nim.git nim/$NIMVER ;
         cd nim/$NIMVER ;
         sh build_all.sh > /dev/null;
         rm -rf csources ;
