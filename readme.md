@@ -11,6 +11,7 @@ Notable releases:
 [![Build status](https://ci.appveyor.com/api/projects/status/7ap5r5a41t7ea04p?svg=true)](https://ci.appveyor.com/project/jangko/nimpng)
 ![nimble](https://img.shields.io/badge/available%20on-nimble-yellow.svg?style=flat-square)
 ![license](https://img.shields.io/github/license/citycide/cascade.svg?style=flat-square)
+![Github action](https://github.com/jangko/nimPNG/workflows/nimPNG%20CI/badge.svg)
 
 all PNG standard color mode are supported:
 
