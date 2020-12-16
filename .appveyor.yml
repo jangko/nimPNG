@@ -83,6 +83,6 @@ build_script:
   - nimble install -y > nul
 
 test_script:
-  - nimble tests
+  - nimble test
 
 deploy: off

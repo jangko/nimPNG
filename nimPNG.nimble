@@ -20,7 +20,7 @@ proc test(env, path: string) =
   exec "nim " & lang & " " & env &
     " --outdir:build -r --hints:off --warnings:off " & path
 
-task tests, "Run tests":
+task test, "Run tests":
   exec "nim -v"
   test "-d:release", "tests/all_tests"
   test "--gc:arc -d:release", "tests/all_tests"
