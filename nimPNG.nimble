@@ -24,3 +24,6 @@ task test, "Run tests":
   exec "nim -v"
   test "-d:release", "tests/all_tests"
   test "--gc:arc -d:release", "tests/all_tests"
+
+task testvcc, "Run tests with vcc compiler":
+  test "--cc:vcc -d:release", "tests/all_tests"
