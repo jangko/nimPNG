@@ -62,6 +62,7 @@ jobs:
       - name: Install build dependencies (Linux i386)
         if: runner.os == 'Linux' && matrix.target.cpu == 'i386'
         run: |
+          ls /etc/apt/sources.list.d
           sudo dpkg --add-architecture i386
           sudo apt-fast update -qq
           sudo DEBIAN_FRONTEND='noninteractive' apt-fast install \
@@ -219,7 +220,6 @@ jobs:
         shell: bash
         working-directory: nimPNG
         run: |
-          nimble install -y --depsOnly
           env TEST_LANG="${{ matrix.target.TEST_LANG }}" nimble test
 
       - name: Setup VCC (Windows-i386)

@@ -163,4 +163,3 @@ You can also see an example in tester/test.nim -> generateAPNG
 
 ## Installation via nimble
 > nimble install nimPNG
-
