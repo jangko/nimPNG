@@ -273,16 +273,16 @@ proc crc32(crc: uint32, buf: string): uint32 =
 
   result = not crcu32
 
-template getUnderlyingType[T](_: seq[T]): untyped = T
+template getUnderlyingType[T](_: openArray[T]): untyped = T
 
-template newStorage[T](size: int): T =
+template newStorage[T](size: int): auto =
   when T is string:
     newString(size)
   else:
     type TT = getUnderlyingType(T)
     newSeq[TT](size)
 
-template newStorageOfCap[T](size: int): T =
+template newStorageOfCap[T](size: int): auto =
   when T is string:
     newStringOfCap(size)
   else:
@@ -3127,6 +3127,8 @@ when not defined(js):
       savePNGLegacy(fileName, input, colorType, bitDepth, w , h)
     elif T is openArray:
       savePNGImpl(fileName, @(input), colorType, bitDepth, w , h)
+    elif T is array:
+      savePNGImpl(fileName, @(input), colorType, bitDepth, w , h)
     else:
       savePNGImpl(fileName, input, colorType, bitDepth, w , h)
 
@@ -3135,6 +3137,8 @@ when not defined(js):
       savePNG32Legacy(fileName, input, w, h)
     elif T is openArray:
       savePNG32Impl(fileName, @(input), w, h)
+    elif T is array:
+      savePNG32Impl(fileName, @(input), w, h)
     else:
       savePNG32Impl(fileName, input, w, h)
 
@@ -3142,6 +3146,8 @@ when not defined(js):
     when T is string:
       savePNG24Legacy(fileName, input, w, h)
     elif T is openArray:
+      savePNG24Impl(fileName, @(input), w, h)
+    elif T is array:
       savePNG24Impl(fileName, @(input), w, h)
     else:
       savePNG24Impl(fileName, input, w, h)

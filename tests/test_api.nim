@@ -54,4 +54,8 @@ proc main() =
       let png1 = loadPNG32(seq[uint8], subject)
       let png2 = loadPNG24(seq[uint8], subject)
 
+    test "savePNG with array":
+      var data: array[100*100*4, uint8]
+      check savePng("image.png", data, LCT_RGBA, 8, 100, 100).isOk
+
 main()
