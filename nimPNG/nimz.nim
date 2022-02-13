@@ -121,8 +121,13 @@ type
   nzStreamMode = enum
     nzsDeflate, nzsInflate
 
+  nzCompMode* = enum
+    nzNoCompression
+    nzFixed
+    nzDynamic
+    
   nzStream* = ref object
-    btype: range[0..3]
+    btype: nzCompMode
     use_lz77: bool
     windowsize: range[2..32768]
     minmatch: range[3..258]
@@ -1178,14 +1183,12 @@ proc nzDeflate(nz: nzStream) =
   var blocksize = 0
   var insize = nz.data.len
 
-  if nz.btype > 2: raise NZFatal("invalid block type")
-  elif nz.btype == 0:
+  if nz.btype == nzNoCompression:
     nz.deflateNoCompression
     return
-  elif nz.btype == 1: blocksize = insize
-  else: blocksize = max(insize div 8 + 8, 65535) #if(nz.btype == 2)
-    #if blocksize < 65535: blocksize = 65535
-
+  elif nz.btype == nzFixed: blocksize = insize
+  else: blocksize = max(insize div 8 + 8, 65535) # deflateDynamic
+  
   var numdeflateblocks = (insize + blocksize - 1) div blocksize
   if numdeflateblocks == 0: numdeflateblocks = 1
   nimzHashInit(hash, nz.windowsize)
@@ -1195,16 +1198,16 @@ proc nzDeflate(nz: nzStream) =
     let datapos = i * blocksize
     let dataend = min(datapos + blocksize, insize)
 
-    if nz.btype == 1: nz.deflateFixed(hash, datapos, dataend, final)
-    elif nz.btype == 2: nz.deflateDynamic(hash, datapos, dataend, final)
+    if nz.btype == nzFixed: nz.deflateFixed(hash, datapos, dataend, final)
+    elif nz.btype == nzDynamic: nz.deflateDynamic(hash, datapos, dataend, final)
 
-proc nzInit(): nzStream =
+proc nzInit(mode: nzCompMode = nzDynamic): nzStream =
   const DEFAULT_WINDOWSIZE = 2048
 
   result = nzStream(
     #compress with dynamic huffman tree
     #(not in the mathematical sense, just not the predefined one)
-    btype : 2,
+    btype : mode,
     use_lz77: true,
     windowsize: DEFAULT_WINDOWSIZE,
     minmatch: 3,
@@ -1212,22 +1215,22 @@ proc nzInit(): nzStream =
     lazymatching: true,
     ignoreAdler32: false)
 
-proc nzDeflateInit*(input: string): nzStream =
-  var nz = nzInit()
+proc nzDeflateInit*(input: string, mode: nzCompMode = nzDynamic): nzStream =
+  var nz = nzInit(mode)
   nz.data = input
   nz.bits.data = ""
   nz.bits.bitpointer = 0
   nz.mode = nzsDeflate
   result = nz
 
-template nzCompressInit*(input: string): nzStream =
-  nzDeflateInit(input)
+template nzCompressInit*(input: string, mode: nzCompMode = nzDynamic): nzStream =
+  nzDeflateInit(input, mode)
 
-template nzCompressInit*(input: seq[byte]): nzStream =
-  nzDeflateInit(cast[string](input))
+template nzCompressInit*(input: seq[byte], mode: nzCompMode = nzDynamic): nzStream =
+  nzDeflateInit(cast[string](input), mode)
 
-template nzCompressInit*(input: seq[char]): nzStream =
-  nzDeflateInit(cast[string](input))
+template nzCompressInit*(input: seq[char], mode: nzCompMode = nzDynamic): nzStream =
+  nzDeflateInit(cast[string](input), mode)
 
 proc nzInflateInit*(input: string): nzStream =
   var nz = nzInit()

@@ -2277,6 +2277,9 @@ proc writeChunk(chunk: PNGHist, png: PNG): bool =
 proc writeChunk(chunk: PNGData, png: PNG): bool =
   var nz = nzDeflateInit(chunk.idat)
   chunk.data = zlib_compress(nz)
+  if chunk.data.len > chunk.idat.len:
+    nz = nzDeflateInit(chunk.idat, nzNoCompression)
+    chunk.data = zlib_compress(nz)
   result = true
 
 proc writeChunk(chunk: PNGZtxt, png: PNG): bool =
