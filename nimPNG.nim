@@ -2997,9 +2997,9 @@ type
   PNGBytes*[T] = Result[T, string]
 
 when not defined(js):
-  proc savePNGImpl*[T](fileName: string, input: T, colorType: PNGColorType, bitDepth, w, h: int): PNGStatus =
+  proc savePNGImpl*[T](fileName: string, input: T, colorType: PNGColorType, bitDepth, w, h: int, settings = PNGEncoder(nil)): PNGStatus =
     try:
-      var png = encodePNG(input, colorType, bitDepth, w, h)
+      var png = encodePNG(input, colorType, bitDepth, w, h, settings)
       var s = newFileStream(fileName, fmWrite)
       png.writeChunks s
       s.close()
@@ -3007,11 +3007,11 @@ when not defined(js):
     except PNGError, IOError, NZError:
       result.err(getCurrentExceptionMsg())
 
-  proc savePNG32Impl*[T](fileName: string, input: T, w, h: int): PNGStatus =
-    savePNGImpl(fileName, input, LCT_RGBA, 8, w, h)
+  proc savePNG32Impl*[T](fileName: string, input: T, w, h: int, settings = PNGEncoder(nil)): PNGStatus =
+    savePNGImpl(fileName, input, LCT_RGBA, 8, w, h, settings)
 
-  proc savePNG24Impl*[T](fileName: string, input: T, w, h: int): PNGStatus =
-    savePNGImpl(fileName, input, LCT_RGB, 8, w, h)
+  proc savePNG24Impl*[T](fileName: string, input: T, w, h: int, settings = PNGEncoder(nil)): PNGStatus =
+    savePNGImpl(fileName, input, LCT_RGB, 8, w, h, settings)
 
 proc prepareAPNG*(T: type, colorType: PNGColorType, bitDepth, numPlays: int, settings = PNGEncoder(nil)): PNG[T] =
   var state: PNGEncoder
@@ -3101,56 +3101,56 @@ when not defined(js):
       result.err(getCurrentExceptionMsg())
 
 when not defined(js):
-  proc savePNGLegacy*(fileName, input: string, colorType: PNGColorType, bitDepth, w, h: int): bool =
-    let res = savePNGImpl(fileName, input, colorType, bitDepth, w, h)
+  proc savePNGLegacy*(fileName, input: string, colorType: PNGColorType, bitDepth, w, h: int, settings = PNGEncoder(nil)): bool =
+    let res = savePNGImpl(fileName, input, colorType, bitDepth, w, h, settings)
     if res.isOk: result = true
     else:
       result = false
       debugEcho res.error()
 
-  proc savePNG32Legacy*(fileName, input: string, w, h: int): bool =
-    let res = savePNG32Impl(fileName, input, w, h)
+  proc savePNG32Legacy*(fileName, input: string, w, h: int, settings = PNGEncoder(nil)): bool =
+    let res = savePNG32Impl(fileName, input, w, h, settings)
     if res.isOk: result = true
     else:
       result = false
       debugEcho res.error()
 
-  proc savePNG24Legacy*(fileName, input: string, w, h: int): bool =
-    let res = savePNG24Impl(fileName, input, w, h)
+  proc savePNG24Legacy*(fileName, input: string, w, h: int, settings = PNGEncoder(nil)): bool =
+    let res = savePNG24Impl(fileName, input, w, h, settings)
     if res.isOk: result = true
     else:
       result = false
       debugEcho res.error()
 
-  template savePNG*[T](fileName: string, input: T, colorType: PNGColorType, bitDepth, w, h: int): untyped =
+  template savePNG*[T](fileName: string, input: T, colorType: PNGColorType, bitDepth, w, h: int, settings = PNGEncoder(nil)): untyped =
     when T is string:
-      savePNGLegacy(fileName, input, colorType, bitDepth, w , h)
+      savePNGLegacy(fileName, input, colorType, bitDepth, w , h, settings)
     elif T is openArray:
-      savePNGImpl(fileName, @(input), colorType, bitDepth, w , h)
+      savePNGImpl(fileName, @(input), colorType, bitDepth, w , h, settings)
     elif T is array:
-      savePNGImpl(fileName, @(input), colorType, bitDepth, w , h)
+      savePNGImpl(fileName, @(input), colorType, bitDepth, w , h, settings)
     else:
-      savePNGImpl(fileName, input, colorType, bitDepth, w , h)
+      savePNGImpl(fileName, input, colorType, bitDepth, w , h, settings)
 
-  template savePNG32*[T](fileName: string, input: T, w, h: int): untyped =
+  template savePNG32*[T](fileName: string, input: T, w, h: int, settings = PNGEncoder(nil)): untyped =
     when T is string:
-      savePNG32Legacy(fileName, input, w, h)
+      savePNG32Legacy(fileName, input, w, h, settings)
     elif T is openArray:
-      savePNG32Impl(fileName, @(input), w, h)
+      savePNG32Impl(fileName, @(input), w, h, settings)
     elif T is array:
-      savePNG32Impl(fileName, @(input), w, h)
+      savePNG32Impl(fileName, @(input), w, h, settings)
     else:
-      savePNG32Impl(fileName, input, w, h)
+      savePNG32Impl(fileName, input, w, h, settings)
 
-  template savePNG24*[T](fileName: string, input: T, w, h: int): untyped =
+  template savePNG24*[T](fileName: string, input: T, w, h: int, settings = PNGEncoder(nil)): untyped =
     when T is string:
-      savePNG24Legacy(fileName, input, w, h)
+      savePNG24Legacy(fileName, input, w, h, settings)
     elif T is openArray:
-      savePNG24Impl(fileName, @(input), w, h)
+      savePNG24Impl(fileName, @(input), w, h, settings)
     elif T is array:
-      savePNG24Impl(fileName, @(input), w, h)
+      savePNG24Impl(fileName, @(input), w, h, settings)
     else:
-      savePNG24Impl(fileName, input, w, h)
+      savePNG24Impl(fileName, input, w, h, settings)
 
 proc prepareAPNG*(colorType: PNGColorType, bitDepth, numPlays: int, settings = PNGEncoder(nil)): PNG[string] =
   prepareAPNG(string, colorType, bitDepth, numPlays, settings)
