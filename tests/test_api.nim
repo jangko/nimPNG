@@ -2,9 +2,11 @@ import ../nimPNG, unittest, os
 
 proc main() =
   const subject = "tests" / "misc" / "sample.png"
-
   const subject24 = "tests" / "misc" / "sample24.png"
   const subject32 = "tests" / "misc" / "sample32.png"
+
+  const tmpOut = "tests" / "tmp" 
+  createDir(tmpOut)
 
   let data = cast[string](readFile(subject))
   suite "test API":
@@ -56,6 +58,6 @@ proc main() =
 
     test "savePNG with array":
       var data: array[100*100*4, uint8]
-      check savePng("image.png", data, LCT_RGBA, 8, 100, 100).isOk
+      check savePng(tmpOut / "image.png", data, LCT_RGBA, 8, 100, 100).isOk
 
 main()

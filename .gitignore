@@ -1,2 +1,3 @@
 tests/corpus_dir
+tests/tmp
 *.exe
