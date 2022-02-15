@@ -398,11 +398,16 @@ proc readByte(s: PNGChunk): int =
   result = ord(s.data[s.pos])
   inc s.pos
 
-template readEnum(s: PNGChunk, T: type): untyped =
-  let typ = readByte(s).int
-  if typ < low(T).int or typ > high(T).int:
-    raise PNGFatal("Wrong " & T.name & " value " & $typ)
-  T(typ)
+proc readColorType(s: PNGChunk): PNGColorType =
+  let ct = readByte(s).int
+  case ct
+  of 0: return LCT_GREY
+  of 2: return LCT_RGB
+  of 3: return LCT_PALETTE
+  of 4: return LCT_GREY_ALPHA
+  of 6: return LCT_RGBA
+  else:
+    raise PNGFatal("Wrong ColorType value: " & $ct)
 
 proc setPosition(s: PNGChunk, pos: int) =
   if pos < 0 or pos > s.data.len: raise PNGFatal("set position error")
@@ -454,7 +459,7 @@ proc parseChunk(chunk: PNGHeader, png: PNG): bool =
   chunk.width = chunk.readInt32()
   chunk.height = chunk.readInt32()
   chunk.bitDepth = chunk.readByte()
-  chunk.colorType = chunk.readEnum(PNGColorType)
+  chunk.colorType = chunk.readColorType()
   chunk.compressionMethod = chunk.readByte()
   chunk.filterMethod = chunk.readByte()
   chunk.interlaceMethod = PNGInterlace(chunk.readByte())
