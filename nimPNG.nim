@@ -1677,26 +1677,23 @@ proc getConverterRGBA[T](mode: PNGColorMode): convertRGBA[T] =
     else: return RGBAFromRGBA16[T]
   else: raise PNGFatal("unsupported RGBA converter")
 
+proc makePaletteTree(bitDepth: int, paletteSize: int, palette: openArray[RGBA8]): ColorTree8 =
+  let palSize = min(1 shl bitDepth, paletteSize)
+  result = initTable[RGBA8, int](nextPowerOfTwo(paletteSize))
+  for i in 0 ..< palSize:
+    result[palette[i]] = i
+
 proc convertImpl*[T](output: var openArray[T], input: openArray[T], modeOut, modeIn: PNGColorMode, numPixels: int) =
   var tree: ColorTree8
   if modeOut.colorType == LCT_PALETTE:
-    var
-      paletteSize = modeOut.paletteSize
-      palette:  type(modeOut.palette)
-      palSize = 1 shl modeOut.bitDepth
-
-    shallowCopy(palette, modeOut.palette)
     # if the user specified output palette but did not give the values, assume
     # they want the values of the input color type (assuming that one is palette).
     # Note that we never create a new palette ourselves.
-    if paletteSize == 0:
-      paletteSize = modeIn.paletteSize
-      shallowCopy(palette, modeIn.palette)
-
-    if paletteSize < palSize: palSize = paletteSize
-    tree = initTable[RGBA8, int](nextPowerOfTwo(paletteSize))
-    for i in 0..palSize-1:
-      tree[palette[i]] = i
+    if modeOut.paletteSize != 0:
+      tree = makePaletteTree(modeOut.bitDepth, modeOut.paletteSize, modeOut.palette)
+    else:
+      # bitDepth == modeOut.bitDepth is intentional, not a bug
+      tree = makePaletteTree(modeOut.bitDepth, modeIn.paletteSize, modeIn.palette)
 
   if(modeIn.bitDepth == 16) and (modeOut.bitDepth == 16):
     let cvt = getColorRGBA16[T](modeIn)
@@ -1764,9 +1761,10 @@ proc convert*[T](png: PNG[T], colorType: PNGColorType, bitDepth: int, ctl: APNGF
 
 proc toStorage[T](chunk: APNGFrameData): T =
   let fdatLen = chunk.data.len - chunk.frameDataPos
-  let fdatAddr = chunk.data[chunk.frameDataPos].addr
   result = newStorage[T](fdatLen)
-  copyMem(result[0].addr, fdatAddr, fdatLen)
+  type Z = getUnderlyingType(result)
+  for i in 0 ..< fdatLen:
+    result[i] = Z(chunk.data[chunk.frameDataPos+i])
 
 type
   APNG[T] = ref object
@@ -2655,7 +2653,7 @@ proc preProcessScanLines[T, B](png: PNG[T], input: openArray[B], frameNo, w, h: 
       filter(output.toOpenArray(0, output.len-1),
         input, w, h, modeOut, state)
 
-    shallowCopy(png.apngPixels[frameNo], output)
+    png.apngPixels[frameNo] = system.move(output)
 
   else: #interlaceMethod is 1 (Adam7)
     var pass: PNGPass
@@ -2683,7 +2681,7 @@ proc preProcessScanLines[T, B](png: PNG[T], input: openArray[B], frameNo, w, h: 
           adam7.toOpenArray(pass.paddedStart[i], adam7.len-1),
           pass.w[i], pass.h[i], modeOut, state)
 
-    shallowCopy(png.apngPixels[frameNo], output)
+    png.apngPixels[frameNo] = system.move(output)
 
 #palette must have 4 * palettesize bytes allocated, and given in format RGBARGBARGBARGBA...
 #returns 0 if the palette is opaque,
@@ -2877,9 +2875,9 @@ proc encoderCore[T](png: PNG[T]) =
 
   if not png.isAPNG: png.apngPixels = @[newStorage[T](0)]
 
-  shallowCopy(png.apngPixels[0], png.pixels)
+  png.apngPixels[0] = system.move(png.pixels)
   frameConvert[T](png, modeIn, modeOut, png.width, png.height, 0, state)
-  shallowCopy(png.pixels, png.apngPixels[0])
+  png.pixels = png.apngPixels[0]
 
   png.addChunkIHDR(png.width, png.height, modeOut, state)
   #unknown chunks between IHDR and PLTE
@@ -2948,7 +2946,7 @@ proc encoderCore[T](png: PNG[T]) =
 
   png.addChunkIEND()
 
-proc encodePNG*[T](input: T, w, h: int, settings = PNGEncoder(nil)): PNG[T] =
+proc encodePNG*[T](input: sink T, w, h: int, settings = PNGEncoder(nil)): PNG[T] =
   var png: PNG[T]
   new(png)
   png.chunks = @[]
@@ -2958,11 +2956,11 @@ proc encodePNG*[T](input: T, w, h: int, settings = PNGEncoder(nil)): PNG[T] =
 
   png.width = w
   png.height = h
-  shallowCopy(png.pixels, input)
+  png.pixels = input
   encoderCore[T](png)
   result = png
 
-proc encodePNG*[T](input: T, colorType: PNGColorType, bitDepth, w, h: int, settings = PNGEncoder(nil)): PNG[T] =
+proc encodePNG*[T](input: sink T, colorType: PNGColorType, bitDepth, w, h: int, settings = PNGEncoder(nil)): PNG[T] =
   if not bitDepthAllowed(colorType, bitDepth):
     raise PNGFatal("colorType and bitDepth combination not allowed")
 
@@ -3005,7 +3003,7 @@ type
   PNGBytes*[T] = Result[T, string]
 
 when not defined(js):
-  proc savePNGImpl*[T](fileName: string, input: T, colorType: PNGColorType, bitDepth, w, h: int, settings = PNGEncoder(nil)): PNGStatus =
+  proc savePNGImpl*[T](fileName: string, input: sink T, colorType: PNGColorType, bitDepth, w, h: int, settings = PNGEncoder(nil)): PNGStatus =
     try:
       var png = encodePNG(input, colorType, bitDepth, w, h, settings)
       var s = newFileStream(fileName, fmWrite)
@@ -3050,7 +3048,7 @@ proc prepareAPNG24*(T: type, numPlays = 0): PNG[T] =
 proc prepareAPNG32*(T: type, numPlays = 0): PNG[T] =
   prepareAPNG(T, LCT_RGBA, 8, numPlays)
 
-proc addDefaultImage*[T](png: PNG[T], input: T, width, height: int, ctl = APNGFrameControl(nil)): bool =
+proc addDefaultImage*[T](png: PNG[T], input: sink T, width, height: int, ctl = APNGFrameControl(nil)): bool =
   result = true
   png.firstFrameIsDefaultImage = ctl != nil
   if ctl != nil:
@@ -3064,7 +3062,7 @@ proc addDefaultImage*[T](png: PNG[T], input: T, width, height: int, ctl = APNGFr
     png.apngChunks.add nil
     png.apngPixels.add ""
 
-  shallowCopy(png.pixels, input)
+  png.pixels = input
   png.width = width
   png.height = height
 

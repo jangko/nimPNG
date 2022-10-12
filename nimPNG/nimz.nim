@@ -125,7 +125,7 @@ type
     nzNoCompression
     nzFixed
     nzDynamic
-    
+
   nzStream* = ref object
     btype: nzCompMode
     use_lz77: bool
@@ -1188,7 +1188,7 @@ proc nzDeflate(nz: nzStream) =
     return
   elif nz.btype == nzFixed: blocksize = insize
   else: blocksize = max(insize div 8 + 8, 65535) # deflateDynamic
-  
+
   var numdeflateblocks = (insize + blocksize - 1) div blocksize
   if numdeflateblocks == 0: numdeflateblocks = 1
   nimzHashInit(hash, nz.windowsize)
@@ -1232,10 +1232,10 @@ template nzCompressInit*(input: seq[byte], mode: nzCompMode = nzDynamic): nzStre
 template nzCompressInit*(input: seq[char], mode: nzCompMode = nzDynamic): nzStream =
   nzDeflateInit(cast[string](input), mode)
 
-proc nzInflateInit*(input: string): nzStream =
+proc nzInflateInit*(input: sink string): nzStream =
   var nz = nzInit()
   nz.data = newStringOfCap(1024 * 1024 * 5) # Allocate 5MB in advance
-  shallowCopy(nz.bits.data, input)
+  nz.bits.data = input
   nz.bits.bitpointer = 0
   nz.bits.databitlen = input.len * 8
   nz.mode = nzsInflate
