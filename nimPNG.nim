@@ -433,9 +433,9 @@ proc apngGetChunk*(png: PNG, chunkType: PNGChunkType): PNGChunk =
 
 proc bitDepthAllowed(colorType: PNGColorType, bitDepth: int): bool =
   case colorType
-  of LCT_GREY   : result = bitDepth in {1, 2, 4, 8, 16}
-  of LCT_PALETTE: result = bitDepth in {1, 2, 4, 8}
-  else: result = bitDepth in {8, 16}
+  of LCT_GREY   : result = bitDepth in [1, 2, 4, 8, 16]
+  of LCT_PALETTE: result = bitDepth in [1, 2, 4, 8]
+  else: result = bitDepth in [8, 16]
 
 proc validateChunk(header: PNGHeader, png: PNG): bool =
   if header.width < 1 or header.width > 0x7FFFFFFF:
@@ -745,7 +745,7 @@ proc parseChunk(chunk: PNGSPalette, png: PNG): bool =
   chunk.paletteName = chunk.data.substr(0, len)
   chunk.setPosition(len + 1)
   chunk.sampleDepth = chunk.readByte()
-  if chunk.sampleDepth notin {8, 16}: raise PNGFatal("palette sample depth error")
+  if chunk.sampleDepth notin [8, 16]: raise PNGFatal("palette sample depth error")
 
   let remainingLength = (chunk.length - (len + 2))
   if chunk.sampleDepth == 8:
@@ -2252,7 +2252,7 @@ proc writeChunk(chunk: PNGSPalette, png: PNG): bool =
   #else: estimate += chunk.palette.len * 10
   chunk.writeString chunk.paletteName
   chunk.writeByte 0 #null separator
-  if chunk.sampleDepth notin {8, 16}: raise PNGFatal("palette sample depth error")
+  if chunk.sampleDepth notin [8, 16]: raise PNGFatal("palette sample depth error")
   chunk.writeByte chunk.sampleDepth
 
   if chunk.sampleDepth == 8:
