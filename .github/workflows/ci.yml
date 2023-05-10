@@ -1,4 +1,4 @@
-name: nimPNG CI
+name: CI
 on: [push, pull_request]
 
 jobs:
@@ -22,10 +22,10 @@ jobs:
         include:
           - target:
               os: linux
-            builder: ubuntu-18.04
+            builder: ubuntu-20.04
           - target:
               os: macos
-            builder: macos-10.15
+            builder: macos-11
           - target:
               os: windows
             builder: windows-latest
@@ -34,7 +34,7 @@ jobs:
     runs-on: ${{ matrix.builder }}
     steps:
       - name: Checkout nimPNG
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           path: nimPNG
           submodules: false
@@ -62,7 +62,7 @@ jobs:
       - name: Restore MinGW-W64 (Windows) from cache
         if: runner.os == 'Windows'
         id: windows-mingw-cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: external/mingw-${{ matrix.target.cpu }}
           key: 'mingw-${{ matrix.target.cpu }}'
@@ -70,7 +70,7 @@ jobs:
       - name: Restore Nim DLLs dependencies (Windows) from cache
         if: runner.os == 'Windows'
         id: windows-dlls-cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: external/dlls-${{ matrix.target.cpu }}
           key: 'dlls-${{ matrix.target.cpu }}'
@@ -124,13 +124,13 @@ jobs:
             git ls-remote "https://github.com/$1" "${2:-HEAD}" | cut -f 1
           }
           nimHash=$(getHash nim-lang/Nim devel)
-          csourcesHash=$(getHash nim-lang/csources_v1)
+          csourcesHash=$(getHash nim-lang/csources_v2)
           echo "::set-output name=nim::$nimHash"
           echo "::set-output name=csources::$csourcesHash"
 
       - name: Restore prebuilt Nim from cache
         id: nim-cache
-        uses: actions/cache@v1
+        uses: actions/cache@v3
         with:
           path: nim
           key: 'nim-${{ matrix.target.os }}-${{ matrix.target.cpu }}-${{ steps.versions.outputs.nim }}'
@@ -138,7 +138,7 @@ jobs:
       - name: Restore prebuilt csources from cache
         if: steps.nim-cache.outputs.cache-hit != 'true'
         id: csources-cache
-        uses: actions/cache@v1
+        uses: actions/cache@v3
         with:
           path: csources/bin
           key: 'csources-${{ matrix.target.os }}-${{ matrix.target.cpu }}-${{ steps.versions.outputs.csources }}'
@@ -147,15 +147,15 @@ jobs:
         if: >
           steps.csources-cache.outputs.cache-hit != 'true' &&
           steps.nim-cache.outputs.cache-hit != 'true'
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
-          repository: nim-lang/csources_v1
+          repository: nim-lang/csources_v2
           path: csources
           ref: ${{ steps.versions.outputs.csources }}
 
       - name: Checkout Nim
         if: steps.nim-cache.outputs.cache-hit != 'true'
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           repository: nim-lang/Nim
           path: nim
