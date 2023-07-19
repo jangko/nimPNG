@@ -285,7 +285,7 @@ proc filterBruteForce*[T](output: var openArray[T], input: openArray[T], w, h, b
           byteWidth, lineTs, PNGFilter(fType))
 
       size[fType] = 0
-      var nz = nzCompressInit(attempt[fType])
+      var nz = nimz.nzCompressInit(attempt[fType])
       let data = zlib_compress(nz)
       size[fType] = data.len
 
