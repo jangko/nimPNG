@@ -1223,13 +1223,7 @@ proc nzDeflateInit*(input: string, mode: nzCompMode = nzDynamic): nzStream =
   nz.mode = nzsDeflate
   result = nz
 
-template nzCompressInit*(input: string, mode: nzCompMode = nzDynamic): nzStream =
-  nzDeflateInit(input, mode)
-
-template nzCompressInit*(input: seq[byte], mode: nzCompMode = nzDynamic): nzStream =
-  nzDeflateInit(cast[string](input), mode)
-
-template nzCompressInit*(input: seq[char], mode: nzCompMode = nzDynamic): nzStream =
+template nzCompressInit*(input: openArray[byte or char], mode: nzCompMode = nzDynamic): nzStream =
   nzDeflateInit(cast[string](input), mode)
 
 proc nzInflateInit*(input: sink string): nzStream =
