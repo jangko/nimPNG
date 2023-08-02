@@ -125,15 +125,15 @@ jobs:
           }
           nimHash=$(getHash nim-lang/Nim devel)
           csourcesHash=$(getHash nim-lang/csources_v2)
-          echo "::set-output name=nim::$nimHash"
-          echo "::set-output name=csources::$csourcesHash"
+          echo "nimHash=$nimHash" >> $GITHUB_OUTPUT
+          echo "csourcesHash=$csourcesHash" >> $GITHUB_OUTPUT
 
       - name: Restore prebuilt Nim from cache
         id: nim-cache
         uses: actions/cache@v3
         with:
           path: nim
-          key: 'nim-${{ matrix.target.os }}-${{ matrix.target.cpu }}-${{ steps.versions.outputs.nim }}'
+          key: 'nim-${{ matrix.target.os }}-${{ matrix.target.cpu }}-${{ steps.versions.outputs.nimHash }}'
 
       - name: Restore prebuilt csources from cache
         if: steps.nim-cache.outputs.cache-hit != 'true'
@@ -141,7 +141,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: csources/bin
-          key: 'csources-${{ matrix.target.os }}-${{ matrix.target.cpu }}-${{ steps.versions.outputs.csources }}'
+          key: 'csources-${{ matrix.target.os }}-${{ matrix.target.cpu }}-${{ steps.versions.outputs.csourcesHash }}'
 
       - name: Checkout Nim csources
         if: >
