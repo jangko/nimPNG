@@ -274,6 +274,7 @@ proc crc32(crc: uint32, buf: string): uint32 =
   result = not crcu32
 
 template getUnderlyingType[T](_: openArray[T]): untyped = T
+template getUnderlyingType[T](_: type openArray[T]): untyped = T
 
 template newStorage[T](size: int): auto =
   when T is string:
