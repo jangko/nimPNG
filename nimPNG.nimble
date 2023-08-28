@@ -1,12 +1,12 @@
 # Package
-version       = "0.3.4"
+version       = "0.3.6"
 author        = "Andri Lim"
 description   = "PNG encoder and decoder"
 license       = "MIT"
 skipDirs      = @["tests", "docs"]
 
 # Deps
-requires "nim >= 0.19.0"
+requires "nim >= 1.16.0"
 
 ### Helper functions
 proc test(env, path: string) =
