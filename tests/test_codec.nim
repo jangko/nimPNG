@@ -1,5 +1,7 @@
-import ../nimPNG, streams, math, strutils, tables, base64, os
-import ../nimPNG/[buffer, filters]
+import
+  std/[streams, math, tables, base64, os],
+  ../nimPNG,
+  ../nimPNG/[filters, utils]
 
 type
   Image = ref object
@@ -63,18 +65,8 @@ proc doCodecTest(image: Image, state: PNGEncoder) =
   var s = newStringStream()
   png.writeChunks s
 
-  #if the image is large enough, compressing it should result in smaller size
-  #if image.data.len > 512:
-    #assertTrue(s.data.len < image.data.len, "compressed size")
-
-  #debugEcho "PNG LEN: ", s.getPosition()
-  #debugEcho "PNG DATA: ", s.data.toHex
-
   s.setPosition 0
   var decoded = s.decodePNG(image.colorType, image.bitDepth)
-
-  #debugEcho "DECODED LEN: ", decoded.data.len
-  #debugEcho "DECODED DATA: ", decoded.data.toHex
 
   assertEquals(image.width, decoded.width)
   assertEquals(image.height, decoded.height)
@@ -511,7 +503,7 @@ proc testPredefinedFilters() =
     state.predefinedFilters[i] = FLT_AVERAGE
 
   try:
-    var pngx = encodePNG(image.data, w, h, state)
+    discard encodePNG(image.data, w, h, state)
     doAssert(false, "should never reach this code")
   except PNGError:
     discard
@@ -522,7 +514,7 @@ proc testPredefinedFilters() =
     state.predefinedFilters[i] = FLT_AVERAGE
 
   try:
-    var pngx = encodePNG(image.data, w, h, state)
+    discard encodePNG(image.data, w, h, state)
     doAssert(false, "should never reach this code")
   except PNGError:
     discard

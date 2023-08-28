@@ -1,4 +1,6 @@
-import streams
+import
+  std/streams,
+  ../nimPNG/utils
 
 type
   BMP* = ref object
@@ -43,7 +45,7 @@ proc writeBMP*(s: Stream, bmp: BMP) =
 
   let bytesPerRow = bmp.width * 3
   let paddingLen  = stride - bytesPerRow
-  let padding     = if paddingLen > 0: newString(paddingLen) else: ""
+  let padding     = if paddingLen > 0: newStringWithDefault(paddingLen) else: ""
 
   for i in 0..bmp.height-1:
     s.writeData(addr(bmp.data[i * bytesPerRow]), bytesPerRow)

@@ -1,4 +1,6 @@
-import math, ../nimPNG/nimz
+import
+  std/math,
+  ../nimPNG/nimz
 
 type
   PNGFilter* = enum

@@ -26,7 +26,7 @@
 #-------------------------------------
 
 import streams, endians, tables, hashes, math, typetraits
-import nimPNG/[buffer, nimz, filters, results]
+import nimPNG/[buffer, nimz, filters, results, utils]
 
 import strutils
 
@@ -235,8 +235,6 @@ type
     data*: T
     frames*: seq[APNGFrame[T]]
 
-  DataBuf = Buffer[string]
-
   PNGError* = object of CatchableError
 
 proc signatureMaker(): string {. compiletime .} =
@@ -278,17 +276,10 @@ template getUnderlyingType[T](_: type openArray[T]): untyped = T
 
 template newStorage[T](size: int): auto =
   when T is string:
-    newString(size)
+    newStringWithDefault(size)
   else:
     type TT = getUnderlyingType(T)
     newSeq[TT](size)
-
-template newStorageOfCap[T](size: int): auto =
-  when T is string:
-    newStringOfCap(size)
-  else:
-    type TT = getUnderlyingType(T)
-    newSeqOfCap[TT](size)
 
 const
   PNGSignature = signatureMaker()
@@ -1866,6 +1857,8 @@ proc decodePNG*(T: type, s: Stream, colorType: PNGColorType, bitDepth: int, sett
 proc decodePNG*(T: type, s: Stream, settings = PNGDecoder(nil)): PNG[T] =
   var png = parsePNG[T](s, settings)
   png.postProcessScanLines()
+
+  {.warning[HoleEnumConv]:off.}
 
   if png.isAPNG:
     var apng = APNG[T](png: png, result: nil)

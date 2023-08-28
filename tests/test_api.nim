@@ -5,7 +5,7 @@ proc main() =
   const subject24 = "tests" / "misc" / "sample24.png"
   const subject32 = "tests" / "misc" / "sample32.png"
 
-  const tmpOut = "tests" / "tmp" 
+  const tmpOut = "tests" / "tmp"
   createDir(tmpOut)
 
   let data = cast[string](readFile(subject))
@@ -14,8 +14,8 @@ proc main() =
       let png1 = decodePNG24(data)
       let png2 = decodePNG32(data)
 
-      let im1 = encodePNG24(png1.data, png1.width, png1.height)
-      let im2 = encodePNG32(png2.data, png2.width, png2.height)
+      discard encodePNG24(png1.data, png1.width, png1.height)
+      discard encodePNG32(png2.data, png2.width, png2.height)
 
       check savePNG24(subject24, png1.data, png1.width, png1.height) == true
       check savePNG32(subject32, png2.data, png2.width, png2.height) == true
@@ -29,8 +29,8 @@ proc main() =
       let png1 = res1.get()
       let png2 = res2.get()
 
-      let im1 = encodePNG24(png1.data, png1.width, png1.height)
-      let im2 = encodePNG32(png2.data, png2.width, png2.height)
+      discard encodePNG24(png1.data, png1.width, png1.height)
+      discard encodePNG32(png2.data, png2.width, png2.height)
 
       check savePNG24(subject24, png1.data, png1.width, png1.height).isOk() == true
       check savePNG32(subject32, png2.data, png2.width, png2.height).isOk() == true
@@ -45,16 +45,16 @@ proc main() =
       let png1 = res1.get()
       let png2 = res2.get()
 
-      let im1 = encodePNG24(png1.data.toOpenArray(0, png1.data.len-1), png1.width, png1.height)
-      let im2 = encodePNG32(png2.data.toOpenArray(0, png2.data.len-1), png2.width, png2.height)
+      discard encodePNG24(png1.data.toOpenArray(0, png1.data.len-1), png1.width, png1.height)
+      discard encodePNG32(png2.data.toOpenArray(0, png2.data.len-1), png2.width, png2.height)
 
     test "loadPNG string":
-      let png1 = loadPNG32(string, subject)
-      let png2 = loadPNG24(string, subject)
+      discard loadPNG32(string, subject)
+      discard loadPNG24(string, subject)
 
     test "loadPNG string":
-      let png1 = loadPNG32(seq[uint8], subject)
-      let png2 = loadPNG24(seq[uint8], subject)
+      discard loadPNG32(seq[uint8], subject)
+      discard loadPNG24(seq[uint8], subject)
 
     test "savePNG with array":
       var data: array[100*100*4, uint8]
