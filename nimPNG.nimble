@@ -6,7 +6,7 @@ license       = "MIT"
 skipDirs      = @["tests", "docs"]
 
 # Deps
-requires "nim >= 1.16.0"
+requires "nim >= 1.6.0"
 
 ### Helper functions
 proc test(env, path: string) =
