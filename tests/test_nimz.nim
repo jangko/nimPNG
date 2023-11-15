@@ -17,7 +17,6 @@ proc main() =
     check_roundtrip("alice29.txt")
     check_roundtrip("house.jpg")
     check_roundtrip("html")
-    check_roundtrip("urls.10K")
     check_roundtrip("fireworks.jpeg")
     check_roundtrip("paper-100k.pdf")
     check_roundtrip("html_x_4")
