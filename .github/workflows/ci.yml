@@ -7,6 +7,7 @@ jobs:
       fail-fast: false
       max-parallel: 20
       matrix:
+        branch: [devel, version-2-2]
         test_lang: [c, cpp]
         target:
           - os: linux
@@ -22,19 +23,19 @@ jobs:
         include:
           - target:
               os: linux
-            builder: ubuntu-20.04
+            builder: ubuntu-22.04
           - target:
               os: macos
-            builder: macos-11
+            builder: macos-13
           - target:
               os: windows
             builder: windows-latest
 
-    name: '${{ matrix.target.os }}-${{ matrix.target.cpu }}-${{ matrix.test_lang }}'
+    name: '${{ matrix.target.os }}-${{ matrix.target.cpu }}-${{ matrix.test_lang }} (${{ matrix.branch }})'
     runs-on: ${{ matrix.builder }}
     steps:
       - name: Checkout nimPNG
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: nimPNG
           submodules: false
@@ -62,7 +63,7 @@ jobs:
       - name: Restore MinGW-W64 (Windows) from cache
         if: runner.os == 'Windows'
         id: windows-mingw-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: external/mingw-${{ matrix.target.cpu }}
           key: 'mingw-${{ matrix.target.cpu }}'
@@ -70,7 +71,7 @@ jobs:
       - name: Restore Nim DLLs dependencies (Windows) from cache
         if: runner.os == 'Windows'
         id: windows-dlls-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: external/dlls-${{ matrix.target.cpu }}
           key: 'dlls-${{ matrix.target.cpu }}'
@@ -123,14 +124,14 @@ jobs:
           getHash() {
             git ls-remote "https://github.com/$1" "${2:-HEAD}" | cut -f 1
           }
-          nimHash=$(getHash nim-lang/Nim devel)
+          nimHash=$(getHash nim-lang/Nim '${{ matrix.branch }}')
           csourcesHash=$(getHash nim-lang/csources_v2)
           echo "nimHash=$nimHash" >> $GITHUB_OUTPUT
           echo "csourcesHash=$csourcesHash" >> $GITHUB_OUTPUT
 
       - name: Restore prebuilt Nim from cache
         id: nim-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: nim
           key: 'nim-${{ matrix.target.os }}-${{ matrix.target.cpu }}-${{ steps.versions.outputs.nimHash }}'
@@ -138,7 +139,7 @@ jobs:
       - name: Restore prebuilt csources from cache
         if: steps.nim-cache.outputs.cache-hit != 'true'
         id: csources-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: csources/bin
           key: 'csources-${{ matrix.target.os }}-${{ matrix.target.cpu }}-${{ steps.versions.outputs.csourcesHash }}'
@@ -147,7 +148,7 @@ jobs:
         if: >
           steps.csources-cache.outputs.cache-hit != 'true' &&
           steps.nim-cache.outputs.cache-hit != 'true'
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: nim-lang/csources_v2
           path: csources
@@ -155,7 +156,7 @@ jobs:
 
       - name: Checkout Nim
         if: steps.nim-cache.outputs.cache-hit != 'true'
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: nim-lang/Nim
           path: nim
